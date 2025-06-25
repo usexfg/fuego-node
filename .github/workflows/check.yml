@@ -29,6 +29,13 @@ jobs:
       - name: Install msbuild
         uses: microsoft/setup-msbuild@v1.1
 
+      - name: Restore Boost
+        uses: actions/cache@v3
+        id: restore-boost
+        with:
+          path: ${{env.BOOST_ROOT}}
+          key: boost_1_83_0-msvc-14.3-64
+
       - name: Download and Install Boost 1.83
         run: |
           $Url = "https://sourceforge.net/projects/boost/files/boost-binaries/1.83.0/boost_1_83_0-msvc-14.2-64.exe"

@@ -63,7 +63,8 @@ namespace
   const command_line::arg_descriptor<int>         arg_log_level   = {"log-level", "", 2}; // info level
   const command_line::arg_descriptor<bool>        arg_console     = {"no-console", "Disable daemon console commands"};
   const command_line::arg_descriptor<bool>        arg_testnet_on  = {"testnet", "Used to deploy test nets. Checkpoints and hardcoded seeds are ignored, "
-    "network id is changed. Use it with --data-dir flag. The wallet must be launched with --testnet flag.", false};
+    "network id is changed. Use it with --data-dir flag. The wallet must be launched with --testnet flag. "
+    "Testnet uses different default ports: P2P=" + std::to_string(P2P_DEFAULT_PORT_TESTNET) + ", RPC=" + std::to_string(RPC_DEFAULT_PORT_TESTNET), false};
   const command_line::arg_descriptor<bool>        arg_print_genesis_tx = { "print-genesis-tx", "Prints genesis' block tx hex to insert it to config and exits" };
 }
 
@@ -275,10 +276,27 @@ int main(int argc, char* argv[])
     NetNodeConfig netNodeConfig;
     netNodeConfig.init(vm);
     netNodeConfig.setTestnet(testnet_mode);
+    
+    // Set testnet-specific default ports if not explicitly configured
+    if (testnet_mode) {
+      if (netNodeConfig.getBindPort() == 0) {
+        netNodeConfig.setBindPort(P2P_DEFAULT_PORT_TESTNET);
+      }
+    } else {
+      if (netNodeConfig.getBindPort() == 0) {
+        netNodeConfig.setBindPort(P2P_DEFAULT_PORT);
+      }
+    }
+    
     MinerConfig minerConfig;
     minerConfig.init(vm);
     RpcServerConfig rpcConfig;
     rpcConfig.init(vm);
+    
+    // Set testnet-specific RPC port if not explicitly configured
+    if (testnet_mode && rpcConfig.bindPort == RPC_DEFAULT_PORT) {
+      rpcConfig.bindPort = RPC_DEFAULT_PORT_TESTNET;
+    }
 
     if (!coreConfig.configFolderDefaulted) {
       if (!Tools::directoryExists(coreConfig.configFolder)) {

@@ -102,7 +102,7 @@ namespace CryptoNote
     m_genesisBlock = boost::value_initialized<Block>();
 
     // Hard code coinbase tx in genesis block, because "tru" generating tx use random, but genesis should be always the same
-    std::string genesisCoinbaseTxHex = GENESIS_COINBASE_TX_HEX;
+    std::string genesisCoinbaseTxHex = m_testnet ? GENESIS_COINBASE_TX_HEX_TESTNET : GENESIS_COINBASE_TX_HEX;
     BinaryArray minerTxBlob;
 
     bool r =

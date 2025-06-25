@@ -22,6 +22,7 @@
 
 #include <cstdint>
 #include <initializer_list>
+#include <boost/uuid/uuid.hpp>
 
 namespace CryptoNote
 {
@@ -136,6 +137,9 @@ namespace CryptoNote
 
         const char CRYPTONOTE_NAME[] = "fuego";
 	const char GENESIS_COINBASE_TX_HEX[] = "013c01ff0001b4bcc29101029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101bd4e0bf284c04d004fd016a21405046e8267ef81328cabf3017c4c24b273b25a";
+	
+	// Testnet Genesis Block
+	const char GENESIS_COINBASE_TX_HEX_TESTNET[] = "013c01ff0001b4bcc29101029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101bd4e0bf284c04d004fd016a21405046e8267ef81328cabf3017c4c24b273b25a";
 
 	const uint8_t  TRANSACTION_VERSION_1                         =  1;
 	const uint8_t  TRANSACTION_VERSION_2                         =  2;
@@ -157,6 +161,15 @@ namespace CryptoNote
 
 	const int P2P_DEFAULT_PORT = 10808;
  	const int RPC_DEFAULT_PORT = 18180;
+
+	// Testnet Configuration
+	const int P2P_DEFAULT_PORT_TESTNET = 20808;
+	const int RPC_DEFAULT_PORT_TESTNET = 28180;
+	const uint64_t CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX_TESTNET = 1753192; /* "test" address prefix */
+	
+	// Network IDs - Different network IDs prevent mainnet/testnet cross-communication
+	const boost::uuids::uuid CRYPTONOTE_NETWORK = { { 0x46, 0x55, 0x45, 0x47, 0x4f, 0x20, 0x4e, 0x45, 0x54, 0x57, 0x4f, 0x52, 0x4b, 0x20, 0x20, 0x20 } }; // "FUEGO NETWORK   "
+	const boost::uuids::uuid CRYPTONOTE_NETWORK_TESTNET = { { 0x54, 0x45, 0x53, 0x54, 0x20, 0x46, 0x55, 0x45, 0x47, 0x4f, 0x20, 0x4e, 0x45, 0x54, 0x20, 0x20 } }; // "TEST FUEGO NET  "
 
 	/* P2P Network Configuration Section - This defines our current P2P network version
 	and the minimum version for communication between nodes */
@@ -194,6 +207,12 @@ namespace CryptoNote
  		"207.244.247.64:10808",
 	        "216.145.66.224:10808"
 			
+	};
+	
+	// Testnet Seed Nodes
+	const std::initializer_list<const char *> SEED_NODES_TESTNET = {
+		"127.0.0.1:20808",  // Local testnet node - replace with actual testnet seed nodes
+		// Add more testnet seed nodes here as they become available
 	};
 
 	struct CheckpointData
