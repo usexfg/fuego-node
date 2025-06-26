@@ -64,7 +64,7 @@ namespace
   const command_line::arg_descriptor<bool>        arg_console     = {"no-console", "Disable daemon console commands"};
   const command_line::arg_descriptor<bool>        arg_testnet_on  = {"testnet", "Used to deploy test nets. Checkpoints and hardcoded seeds are ignored, "
     "network id is changed. Use it with --data-dir flag. The wallet must be launched with --testnet flag. "
-    "Testnet uses different default ports: P2P=" + std::to_string(P2P_DEFAULT_PORT_TESTNET) + ", RPC=" + std::to_string(RPC_DEFAULT_PORT_TESTNET), false};
+    "Testnet uses different default ports: P2P=20808, RPC=28180", false};
   const command_line::arg_descriptor<bool>        arg_print_genesis_tx = { "print-genesis-tx", "Prints genesis' block tx hex to insert it to config and exits" };
 }
 

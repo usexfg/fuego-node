@@ -139,7 +139,7 @@ namespace CryptoNote
 	const char GENESIS_COINBASE_TX_HEX[] = "013c01ff0001b4bcc29101029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101bd4e0bf284c04d004fd016a21405046e8267ef81328cabf3017c4c24b273b25a";
 	
 	// Testnet Genesis Block
-	const char GENESIS_COINBASE_TX_HEX_TESTNET[] = "013c01ff0001b4bcc29101029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101bd4e0bf284c04d004fd016a21405046e8267ef81328cabf3017c4c24b273b25a";
+	const char GENESIS_COINBASE_TX_HEX_TESTNET[] = "013c01ff0001b4bcc29101029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101bd7fb90d296e10919ba4fcc4f3951fc4f8de21cc59c68c76ac9256930fb3e15e";
 
 	const uint8_t  TRANSACTION_VERSION_1                         =  1;
 	const uint8_t  TRANSACTION_VERSION_2                         =  2;
@@ -165,7 +165,7 @@ namespace CryptoNote
 	// Testnet Configuration
 	const int P2P_DEFAULT_PORT_TESTNET = 20808;
 	const int RPC_DEFAULT_PORT_TESTNET = 28180;
-	const uint64_t CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX_TESTNET = 1753192; /* "test" address prefix */
+	const uint64_t CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX_TESTNET = 1075740; /* "TEST" is address prefix */
 	
 	// Network IDs - Different network IDs prevent mainnet/testnet cross-communication
 	const boost::uuids::uuid CRYPTONOTE_NETWORK = { { 0x46, 0x55, 0x45, 0x47, 0x4f, 0x20, 0x4e, 0x45, 0x54, 0x57, 0x4f, 0x52, 0x4b, 0x20, 0x20, 0x20 } }; // "FUEGO NETWORK   "
