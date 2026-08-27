@@ -1,0 +1,34 @@
+{
+  "name": "hearth-eieo-rektproof-user",
+  "version": 1,
+  "author_note": "User-built from own EIEO study + RektProof multi-bias; not a copy service",
+  "pair": "XFG/HEAT",
+  "spread_bps": 50,
+  "max_orders": 2,
+  "swap_interval_sec": 60,
+  "lp_mode": "none",
+  "buy_threshold_bps": 150,
+  "sell_threshold_bps": 300,
+  "max_hold_blocks": 144,
+  "max_position_xfg": 100,
+  "exit_on_loss_bps": 500,
+  "eieo": {
+    "poi_timeframes": ["H12", "H4", "M15"],
+    "sweep_lookback": 20,
+    "bb_confirm_closes": 1,
+    "dc_prefer_over_bb": true,
+    "fs_filter": true,
+    "fvg_filter": true,
+    "session_utc": ["08:00-11:00", "12:00-14:00", "17:00-19:00", "23:00-01:00"],
+    "timeframe_bias": {"htf": "supply", "mid": "trend", "ltf": "range"}
+  },
+  "rektproof": {
+    "htf_resistance": "Weekly S/R + Daily/H12 Supply distribution",
+    "mid_bias": "Daily demand breaker retest continuation",
+    "ltf_scalp": "LTF range sweep/deviation + MSB + SD test",
+    "objectives": ["IRO: prior distribution inside range", "ORO: equal highs/lows just outside"]
+  },
+  "dry_run_default": true,
+  "source_reference": "https://www.eieostrategy.com/indicator",
+  "source_twitter": "https://www.Twitter.com/_SMFX_"
+}

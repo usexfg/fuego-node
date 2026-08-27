@@ -59,6 +59,16 @@ class HearthMMBot:
         self.dashboard_url = args.dashboard_url or 'http://127.0.0.1:18918'
         # Load user's EIEO strategy if provided; else safe defaults.
         self.strategy = self._load_strategy(args.strategy_file)
+        if 'eieo' in self.strategy:
+            logger.info("[EIEO] POI %s sweep_lookback=%s dc_prefer=%s",
+                        self.strategy['eieo'].get('poi_timeframes'),
+                        self.strategy['eieo'].get('sweep_lookback'),
+                        self.strategy['eieo'].get('dc_prefer_over_bb'))
+        if 'rektproof' in self.strategy:
+            logger.info("[REKTPROOF] HTF=%s Mid=%s LTF=%s",
+                        self.strategy['rektproof'].get('htf_resistance'),
+                        self.strategy['rektproof'].get('mid_bias'),
+                        self.strategy['rektproof'].get('ltf_scalp'))
         self.spread_bps = args.spread_bps  # 30-300 range per PoolOrderOrchestrator
         if self.spread_bps < 30 or self.spread_bps > 300:
             logger.warning("Spread outside adaptive 30-300bps; clamped to 30")
