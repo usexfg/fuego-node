@@ -1,0 +1,9 @@
+{
+  "name": "hearth-market-maker-config",
+  "author_note": "User-built liquidity strategy template",
+  "buy_threshold_bps": 150,
+  "sell_threshold_bps": 300,
+  "max_hold_blocks": 144,
+  "max_position_xfg": 100,
+  "dry_run_default": true
+}
