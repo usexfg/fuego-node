@@ -51,7 +51,7 @@ This guide covers implementation of the Tanda (ROSCA) feature on the Fuego block
 | Missed penalty | Configurable, default 25% |
 | Group size | 2-10 members |
 | Max CD term | 72 epochs |
-| Lock-in | 1 ~~epoch~~ FULL ROTATION <--how long? (default) 1 epoch per member??|
+| Lock-in | 1 ~~epoch~~ FULL ROTATION &lt;--how long? (default) 1 epoch per member??|
 | Buffer | Small window between epochs (not full epoch) |
 | Principal lock | Until CD term expires |
 | Interest access | Each epoch |
