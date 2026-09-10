@@ -144,9 +144,20 @@ bool ElectrumSpvClient::syncHeaders() {
       }
     }
 
+    // Eclipse mitigation: cross-check batch tip against majority when multi-server
+    if (m_conns.size() > 1 && numHeaders > 0) {
+      std::vector<uint8_t> lastBytes(rawBytes.begin() + (numHeaders - 1) * 80,
+                                     rawBytes.begin() + numHeaders * 80);
+      SpvHeader last = SpvHeader::parse(lastBytes);
+      uint64_t batchTip = current + numHeaders - 1;
+      // current will be incremented below, so batchTip is last height fetched
+      if (!crossCheckHeader(batchTip, last.merkleRootDisplay())) {
+        return false;
+      }
+    }
+
     current += numHeaders;
 
-    // If we got fewer headers than requested, the server is caught up
     if (numHeaders < count) {
       break;
     }
@@ -322,9 +333,8 @@ bool ElectrumSpvClient::getTipHeight(uint64_t& height) {
     return true;
   }
 
-  // Multi-server: query all servers for their tip, take maximum (most advanced).
-  // Cross-check at the target height to prevent eclipse attacks from a minority.
-  uint64_t maxTip = 0;
+  // Multi-server: query all servers for their tip, use median to resist high-tip injection.
+  std::vector<uint64_t> tips;
   for (auto& conn : m_conns) {
     std::string result = conn->call("blockchain.headers.subscribe", "[]");
     if (result.empty()) {
@@ -340,27 +350,26 @@ bool ElectrumSpvClient::getTipHeight(uint64_t& height) {
       continue;
     }
     uint64_t h = static_cast<uint64_t>(json("height").getInteger());
-    if (h > maxTip) {
-      maxTip = h;
-    }
+    tips.push_back(h);
   }
-
-  if (maxTip == 0) {
+  if (tips.empty()) {
     return false;
   }
-
-  // Cross-check: verify header at maxTip agrees across servers
+  std::sort(tips.begin(), tips.end());
+  uint64_t medianTip = tips[tips.size() / 2];
+  if (medianTip == 0) {
+    return false;
+  }
   std::vector<uint8_t> rootLE;
-  if (!m_store.merkleRootAt(maxTip, rootLE)) {
+  if (!m_store.merkleRootAt(medianTip, rootLE)) {
     return false;
   }
   std::vector<uint8_t> rootBE(rootLE.rbegin(), rootLE.rend());
   std::string rootDisplay = BchHtlcScript::bytesToHex(rootBE);
-  if (!crossCheckHeader(maxTip, rootDisplay)) {
+  if (!crossCheckHeader(medianTip, rootDisplay)) {
     return false;
   }
-
-  height = maxTip;
+  height = medianTip;
   return true;
 }
 

@@ -2668,7 +2668,8 @@ bool RpcServer::on_estimate_cd_yield(const COMMAND_RPC_ESTIMATE_CD_YIELD::reques
     : static_cast<uint32_t>(m_core.get_current_blockchain_height());
 
   res.estimated_interest = m_core.currency().calculateCdInterest(
-    req.amount, req.creation_height, currentHeight, m_core.getCommitmentIndex());
+    req.amount, req.creation_height, currentHeight, m_core.getCommitmentIndex(),
+    false, req.term, false);
 
   const uint64_t epochDuration = m_core.currency().isTestnet()
     ? CryptoNote::parameters::TESTNET_EPOCH_DURATION_BLOCKS
@@ -2695,7 +2696,7 @@ bool RpcServer::on_estimate_cd_yield(const COMMAND_RPC_ESTIMATE_CD_YIELD::reques
       const auto& ci = m_core.getCommitmentIndex();
       uint64_t base = m_core.currency().calculateCdInterest(
           req.amount, req.creation_height, currentHeight, ci,
-          false, req.term, false, /*includeLoyaltyBonus=*/false);
+          false, req.term, false);
       uint64_t bonus = m_core.currency().calculateCdBonus(
           req.amount, req.creation_height, currentHeight, ci, req.term);
       uint64_t bv = m_core.get_blockchain_storage().getBonusVaultBalance();
@@ -2829,7 +2830,6 @@ bool RpcServer::on_get_heat_metrics(const COMMAND_RPC_GET_HEAT_METRICS::request&
   res.treasury_balance = metrics.treasuryBalance;
   res.treasury_counter_xfg = metrics.treasuryCounterXFG;
   res.swf_burned_xfg_pending_heat = metrics.swfBurnedXfgPendingHeat;
-  res.swf_heat_balance = metrics.swfHeatBalance;
   res.epoch_swap_fees = metrics.epochSwapFees;
   res.vault_heat_cd_fee_pool = metrics.vaultHeatCdFeePool;
   res.vault_heat_lp_reserve  = metrics.vaultHeatLpReserve;

@@ -112,11 +112,11 @@ bool ammValidateInvariant(uint64_t reserveAIn, uint64_t reserveBIn,
   uint128_t before = (uint128_t)reserveAIn * reserveBIn;
   uint128_t after  = (uint128_t)reserveAOut * reserveBOut;
   // The fee means the post-swap product must never be below the pre-swap
-  // product. Rounding may reduce the product by at most the rounding loss of
-  // the two reserve updates; allow a 1-permille tolerance to avoid false
-  // negatives on tiny amounts while still catching pool-draining regressions.
-  const uint128_t tolerance = before / 1000 + 1;
-  return after + tolerance >= before;
+  // product.  Allow at most 8 atomic HEAT rounding loss (two reserve updates,
+  // each losing up to 4 units to integer truncation).  The old 0.1%-based
+  // tolerance silently accepted pool-draining regressions on large reserves.
+  static const uint64_t MAX_ROUNDING_LOSS = 8;
+  return after + MAX_ROUNDING_LOSS >= before;
 }
 
 bool ammValidateDepositRatio(uint64_t amountA, uint64_t amountB,

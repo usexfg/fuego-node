@@ -104,9 +104,7 @@ uint32_t PoolOrderOrchestrator::computeSpreadBps(
   // Volatility multiplier: 30-block stddev as fraction of P_clear
   // Use integer-only arithmetic for consensus determinism
   if (m_priceHistory.size() >= 2 && P_clear > 0) {
-    uint128_t sum = 0;
-    for (auto p : m_priceHistory) sum += p;
-    uint64_t mean = static_cast<uint64_t>(sum / static_cast<uint64_t>(m_priceHistory.size()));
+    uint64_t mean = getAveragePrice();
 
     uint128_t varSum = 0;
     for (auto p : m_priceHistory) {

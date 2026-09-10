@@ -111,6 +111,72 @@
   "poly_port": 443,
   "poly_wif": "<64_hex_private_key>",
 
+  // ROBINHOOD — Robinhood Chain L1 (chain ID 4663)
+  "rh_host": "rpc.robinhood.vercel.app",
+  "rh_port": 443,
+  "rh_priv_key": "<64_hex_private_key>",
+  // AVAX — Avalanche C-Chain (chain ID 43114)
+  "avax_host": "api.avax.network",
+  "avax_port": 443,
+  "avax_priv_key": "<64_hex_private_key>",
+  // CRO — Cronos (chain ID 25)
+  "cro_host": "evm.cronos.org",
+  "cro_port": 443,
+  "cro_priv_key": "<64_hex_private_key>",
+  // BOB — Bob BTC rollup (chain ID 60808)
+  "bob_host": "rpc.gobob.xyz",
+  "bob_port": 443,
+  "bob_priv_key": "<64_hex_private_key>",
+  // UNICHAIN — Unichain (chain ID 130)
+  "uni_host": "sepolia.unichain.org",
+  "uni_port": 443,
+  "uni_priv_key": "<64_hex_private_key>",
+  // PLASMA — Plasma (chain ID 9745)
+  "plasma_host": "rpc.plasma.to",
+  "plasma_port": 443,
+  "plasma_priv_key": "<64_hex_private_key>",
+  // PULSEX — PulseChain native PLS (chain ID 369)
+  "pulsex_host": "rpc.pulsechain.com",
+  "pulsex_port": 443,
+  "pulsex_priv_key": "<64_hex_private_key>",
+  // MONAD — Monad (chain ID 185)
+  "monad_host": "rpc.testnet.monad.xyz",
+  "monad_port": 443,
+  "monad_priv_key": "<64_hex_private_key>",
+  // OPTIMISM — Optimism L2 (chain ID 10)
+  "op_host": "mainnet.optimism.io",
+  "op_port": 443,
+  "op_priv_key": "<64_hex_private_key>",
+  // DOGE — Dogecoin (port 22556)
+  "doge_host": "127.0.0.1",
+  "doge_port": 22556,
+  "doge_wif": "<doge_wif>",
+  // DASH — Dash (port 9998)
+  "dash_host": "127.0.0.1",
+  "dash_port": 9998,
+  "dash_wif": "<dash_wif>",
+  // ZEC — Zcash (port 8232)
+  "zec_host": "127.0.0.1",
+  "zec_port": 8232,
+  "zec_wif": "<zec_wif>",
+  // ZANO
+  "zano_daemon_host": "127.0.0.1",
+  "zano_daemon_port": 11211,
+  "zano_spend_key": "<64_hex>",
+  "zano_view_key": "<64_hex>",
+  // TON
+  "ton_host": "toncenter.com",
+  "ton_port": 443,
+  "ton_wallet_key": "<ed25519_seed_hex>",
+  // SIA
+  "sia_host": "127.0.0.1",
+  "sia_port": 9980,
+  "sia_api_password": "<sia_password>",
+  // DOT — Polkadot (staged)
+  "dot_host": "rpc.polkadot.io",
+  "dot_port": 443,
+  "dot_address": "<ss58_address>",
+
   // ── SOL (Solana — Light Client) ───────────────────────────────────────────
   // Connect to any Solana JSON-RPC endpoint. Public endpoints are free.
   "sol_mode": "rpc",

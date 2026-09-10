@@ -216,8 +216,7 @@ namespace CryptoNote {
                                                   uint64_t& outInterest,
                                                   bool isLegacyBond = false,
                                                   uint32_t term = 0,
-                                                  bool autoRolled = false,
-                                                  bool includeLoyaltyBonus = true) override;
+                                                  bool autoRolled = false) override;
     virtual std::error_code getCommitmentEpochFeeRate(uint32_t epoch,
                                                        uint64_t& outFeeRate) override;
     virtual std::error_code getAmmPoolReserves(AmmPoolReserves& out) override;

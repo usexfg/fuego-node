@@ -143,8 +143,7 @@ public:
                                                 uint32_t currentHeight, uint64_t& outInterest,
                                                 bool isLegacyBond = false,
                                                 uint32_t term = 0,
-                                                bool autoRolled = false,
-                                                bool includeLoyaltyBonus = true) {
+                                                bool autoRolled = false) {
     outInterest = 0;
     return {};
   }

@@ -2473,7 +2473,6 @@ struct COMMAND_RPC_GET_HEAT_METRICS {
     uint64_t treasury_balance;
     uint64_t treasury_counter_xfg;
     uint64_t swf_burned_xfg_pending_heat;
-    uint64_t swf_heat_balance;
     uint64_t epoch_swap_fees;
     uint64_t vault_heat_cd_fee_pool;
     uint64_t vault_heat_lp_reserve;
@@ -2496,7 +2495,6 @@ struct COMMAND_RPC_GET_HEAT_METRICS {
       KV_MEMBER(treasury_balance)
       KV_MEMBER(treasury_counter_xfg)
       KV_MEMBER(swf_burned_xfg_pending_heat)
-      KV_MEMBER(swf_heat_balance)
       KV_MEMBER(epoch_swap_fees)
       KV_MEMBER(vault_heat_cd_fee_pool)
       KV_MEMBER(vault_heat_lp_reserve)

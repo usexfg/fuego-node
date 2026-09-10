@@ -20,10 +20,12 @@ namespace CryptoNote {
 void OrderbookIndex::addOrder(const OrderEntry& entry) {
   if (entry.side == 0) {
     m_bidCurve[entry.price].push_back(entry);
+    m_bidLevelDepths[entry.price] += entry.amount;
     m_orderIdToSide[entry.orderId] = 0;
     m_bidCount++;
   } else {
     m_askCurve[entry.price].push_back(entry);
+    m_askLevelDepths[entry.price] += entry.amount;
     m_orderIdToSide[entry.orderId] = 1;
     m_askCount++;
   }
@@ -46,13 +48,17 @@ void OrderbookIndex::removeOrder(const Crypto::Hash& orderId) {
   uint8_t side = sideIt->second;
 
   std::vector<OrderEntry>* curve = nullptr;
+  std::map<uint64_t, uint64_t, std::greater<uint64_t>>* depthMapBi = nullptr;
+  std::map<uint64_t, uint64_t>* depthMapAs = nullptr;
   if (side == 0) {
     auto it = m_bidCurve.find(price);
     if (it != m_bidCurve.end()) curve = &it->second;
+    depthMapBi = &m_bidLevelDepths;
     m_bidCount--;
   } else {
     auto it = m_askCurve.find(price);
     if (it != m_askCurve.end()) curve = &it->second;
+    depthMapAs = &m_askLevelDepths;
     m_askCount--;
   }
 
@@ -64,6 +70,15 @@ void OrderbookIndex::removeOrder(const Crypto::Hash& orderId) {
         if (sc != m_perSenderCount.end()) {
           if (sc->second <= 1) m_perSenderCount.erase(sc);
           else sc->second--;
+        }
+        if (depthMapBi) {
+          auto& d = (*depthMapBi)[price];
+          if (d >= it->amount) d -= it->amount;
+          else d = 0;
+        } else if (depthMapAs) {
+          auto& d = (*depthMapAs)[price];
+          if (d >= it->amount) d -= it->amount;
+          else d = 0;
         }
         curve->erase(it);
         break;
@@ -87,6 +102,8 @@ bool OrderbookIndex::canPlaceOrder(const SenderKey& sender) const {
 void OrderbookIndex::clear() {
   m_bidCurve.clear();
   m_askCurve.clear();
+  m_bidLevelDepths.clear();
+  m_askLevelDepths.clear();
   m_perSenderCount.clear();
   m_orderIdToPrice.clear();
   m_orderIdToSide.clear();
@@ -145,9 +162,17 @@ size_t OrderbookIndex::removeOutOfBandOrders() {
 
   // Recount for accuracy after bulk removal
   m_bidCount = 0;
-  for (const auto& lvl : m_bidCurve) m_bidCount += lvl.second.size();
+  m_bidLevelDepths.clear();
+  for (const auto& lvl : m_bidCurve) {
+    m_bidCount += lvl.second.size();
+    for (const auto& e : lvl.second) m_bidLevelDepths[lvl.first] += e.amount;
+  }
   m_askCount = 0;
-  for (const auto& lvl : m_askCurve) m_askCount += lvl.second.size();
+  m_askLevelDepths.clear();
+  for (const auto& lvl : m_askCurve) {
+    m_askCount += lvl.second.size();
+    for (const auto& e : lvl.second) m_askLevelDepths[lvl.first] += e.amount;
+  }
 
   return removed;
 }

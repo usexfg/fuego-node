@@ -1520,11 +1520,10 @@ const CommitmentIndex& core::getCommitmentIndex() const {
 std::error_code core::calculateCdInterest(uint64_t amount, uint32_t creationHeight,
                                            uint32_t currentHeight, uint64_t& outInterest,
                                            bool isLegacyBond, uint32_t term,
-                                           bool autoRolled, bool includeLoyaltyBonus) {
+                                           bool autoRolled) {
   outInterest = m_currency.calculateCdInterest(amount, creationHeight, currentHeight,
                                                m_blockchain.getCommitmentIndex(),
-                                               isLegacyBond, term, autoRolled,
-                                               includeLoyaltyBonus);
+                                               isLegacyBond, term, autoRolled);
   return {};
 }
 
@@ -1652,7 +1651,7 @@ core::AmmQuote core::getAmmQuote(uint64_t inputAmount, uint8_t direction) const 
   AmmQuote q;
   auto est = m_blockchain.getOrderbookEstimate(direction, inputAmount);
   q.expectedOutput = est.estimatedFill;
-  q.fee = (inputAmount * parameters::HEARTH_FEE_BPS) / parameters::HEARTH_FEE_DIVISOR;
+  q.fee = std::max<uint64_t>(1, (inputAmount * parameters::HEARTH_FEE_BPS) / parameters::HEARTH_FEE_DIVISOR);
   uint64_t spotPrice = m_blockchain.getHearthSpotPrice();
   if (spotPrice > 0) {
     if (est.worstCasePrice > 0 && spotPrice > 0) {

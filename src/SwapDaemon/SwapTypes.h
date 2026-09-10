@@ -102,7 +102,8 @@ enum class SwapPair : uint8_t {
   ZANO = 24,
   MONAD = 25,
   OPTIMISM = 26,
-  TON = 27
+  TON = 27,
+  DOT = 28
 };
 
 enum class SwapLockType : uint8_t {

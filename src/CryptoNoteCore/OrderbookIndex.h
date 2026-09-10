@@ -58,12 +58,27 @@ public:
   explicit OrderbookIndex(uint32_t maxOrdersPerBlock, uint32_t maxOrdersPerSender)
     : m_maxOrdersPerBlock(maxOrdersPerBlock), m_maxOrdersPerSender(maxOrdersPerSender) {}
 
+  // Dynamic limits derived from current block size.
+  // ~400 bytes per order → block_size/400 orders max; per-sender = 1/20 of that.
+  explicit OrderbookIndex(uint64_t blockSizeBytes)
+    : m_maxOrdersPerBlock(std::max<uint32_t>(50, static_cast<uint32_t>(blockSizeBytes / 400))),
+      m_maxOrdersPerSender(std::max<uint32_t>(5, m_maxOrdersPerBlock / 20)) {}
+
   void addOrder(const OrderEntry& entry);
   void removeOrder(const Crypto::Hash& orderId);
   size_t removeOutOfBandOrders();
 
   const std::map<uint64_t, std::vector<OrderEntry>, std::greater<uint64_t>>& getBidCurve() const { return m_bidCurve; }
   const std::map<uint64_t, std::vector<OrderEntry>>& getAskCurve() const { return m_askCurve; }
+
+  uint64_t getBidLevelDepth(uint64_t price) const {
+    auto it = m_bidLevelDepths.find(price);
+    return (it != m_bidLevelDepths.end()) ? it->second : 0;
+  }
+  uint64_t getAskLevelDepth(uint64_t price) const {
+    auto it = m_askLevelDepths.find(price);
+    return (it != m_askLevelDepths.end()) ? it->second : 0;
+  }
 
   uint32_t getSenderOpenOrderCount(const SenderKey& sender) const;
   size_t getTotalOpenOrders() const { return m_bidCount + m_askCount; }
@@ -76,6 +91,8 @@ public:
 private:
   std::map<uint64_t, std::vector<OrderEntry>, std::greater<uint64_t>> m_bidCurve;
   std::map<uint64_t, std::vector<OrderEntry>> m_askCurve;
+  std::map<uint64_t, uint64_t, std::greater<uint64_t>> m_bidLevelDepths;
+  std::map<uint64_t, uint64_t> m_askLevelDepths;
   std::map<SenderKey, uint32_t> m_perSenderCount;
   std::map<Crypto::Hash, uint64_t, HashLess> m_orderIdToPrice;
   std::map<Crypto::Hash, uint8_t, HashLess> m_orderIdToSide;

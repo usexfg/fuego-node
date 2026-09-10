@@ -34,6 +34,7 @@ uint64_t msPerBlock(SwapPair pair) {
     case SwapPair::TON: return 5000;     // ~5s/block
     case SwapPair::MONAD: return 500;    // ~0.5s/block
     case SwapPair::OPTIMISM: return 2000; // ~2s/block
+    case SwapPair::DOT: return 6000;      // ~6s/block (Polkadot relay)
     default:             return 600000;  // conservative default (safe: overestimates CTR)
   }
 }

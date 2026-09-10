@@ -482,7 +482,7 @@ std::string simple_wallet::get_commands_str() {
   });
 
   add_cat("Aliases", {
-    {"register_alias", "Register an @ alias (8 chars [a-z0-9&], costs 1 XFG). Use a sub-address for privacy."},
+    {"register_alias", "Register an @ alias (8 chars [a-z0-9&], costs 1 XFG). Auto-generates a fresh subaddress from your master — master is never exposed on-chain."},
     {"lookup_alias", "Look up an @ alias by name or wallet address"},
     {"list_aliases", "List all registered @ aliases on the network"}
   });
@@ -610,7 +610,7 @@ simple_wallet::simple_wallet(System::Dispatcher& dispatcher, const CryptoNote::C
   // m_consoleHandler.setHandler("gen_proof", boost::bind(&simple_wallet::gen_proof, this, boost::arg<1>()), "gen_proof <tx_hash> - Data needed to generate STARK proof for deposit transaction (for L2 claims)");
 
   // @ Alias system commands
-  m_consoleHandler.setHandler("register_alias", boost::bind(&simple_wallet::register_alias, this, boost::arg<1>()), "register_alias <alias> - Register an @ alias (8 chars [a-z0-9&], costs 1 XFG).");
+  m_consoleHandler.setHandler("register_alias", boost::bind(&simple_wallet::register_alias, this, boost::arg<1>()), "register_alias <alias> - Register an @ alias (8 chars [a-z0-9&], costs 1 XFG). Auto-derives a fresh subaddress; master is never used on-chain.");
   m_consoleHandler.setHandler("lookup_alias", boost::bind(&simple_wallet::lookup_alias, this, boost::arg<1>()), "lookup_alias <alias_or_address> - Look up an @ alias by name or wallet address");
   m_consoleHandler.setHandler("list_aliases", boost::bind(&simple_wallet::list_aliases, this, boost::arg<1>()), "list_aliases - List all registered @ aliases on the network");
   m_consoleHandler.setHandler("gen_new_sub", boost::bind(&simple_wallet::gen_new_sub, this, boost::arg<1>()), "gen_new_sub [major] [minor] - Generate a sub-address at index (major, minor). Omit args for auto-increment (0, N).");
@@ -3654,20 +3654,23 @@ bool simple_wallet::register_alias(const std::vector<std::string> &args) {
     return true;
   }
 
-  std::string walletAddress = m_wallet->getAddress();
-
-  // Show confirmation summary
+  // Show confirmation summary — describe privacy-preserving subaddress flow
   success_msg_writer() << "";
   {
     success_msg_writer() << "Registering alias @" << alias;
     success_msg_writer() << "  Type: Regular [a-z0-9&]";
+    success_msg_writer() << "  Privacy: On confirmation a fresh subaddress will be automatically";
+    success_msg_writer() << "           derived from your master wallet (D_ij = B + m*G, C_ij = A)";
+    success_msg_writer() << "           and used in place of your master address for this";
+    success_msg_writer() << "           registration. Your master address is never exposed on-chain";
+    success_msg_writer() << "           — the alias maps to the one-time subaddress only.";
     if (m_currency.isTestnet()) {
-      success_msg_writer() << "  Fee: self-transfer (testnet)";
+      success_msg_writer() << "  Fee: self-transfer (testnet) to the derived subaddress";
     } else {
       success_msg_writer() << "  Fee: 1 XFG sent to Fuego Developer Fund";
     }
   }
-  success_msg_writer() << "  Address: " << walletAddress;
+  success_msg_writer() << "  Subaddress: will be auto-generated at index [0, next] on confirm";
   success_msg_writer() << "";
   success_msg_writer() << "Confirm? (1) OK  (2) No ";
 
@@ -3679,8 +3682,35 @@ bool simple_wallet::register_alias(const std::vector<std::string> &args) {
     return true;
   }
 
+  // Auto-derive fresh subaddress for this alias — master is never exposed on-chain.
+  // Unlinkability: alias → one-time subaddress (D_ij, C_ij); master keys stay private.
+  std::string walletAddress;
+  uint32_t aliasMajor = 0;
+  uint32_t aliasMinor = 0;
   try {
-    // Build the 0xEA alias registration extra
+    aliasMinor = 1;
+    for (const auto& e : m_subAddresses) {
+      if (std::get<0>(e) == 0) {
+        aliasMinor = std::max(aliasMinor, std::get<1>(e) + 1);
+      }
+    }
+    walletAddress = m_wallet->registerSubAddress(aliasMajor, aliasMinor);
+    if (walletAddress.empty() || walletAddress.size() < 10) {
+      fail_msg_writer() << "Derived subaddress is invalid — aborting alias registration.";
+      return true;
+    }
+    m_subAddresses.emplace_back(aliasMajor, aliasMinor, walletAddress);
+    saveSubAddresses();
+    success_msg_writer() << "Derived fresh subaddress [" << aliasMajor << "," << aliasMinor << "] for alias @" << alias << ":";
+    success_msg_writer() << "  " << walletAddress;
+    success_msg_writer() << "  Master address is not used on-chain.";
+  } catch (const std::exception& e) {
+    fail_msg_writer() << "Failed to derive subaddress for alias: " << e.what();
+    return true;
+  }
+
+  try {
+    // Build the 0xEA alias registration extra — uses derived subaddress, not master
     CryptoNote::TransactionExtraAliasRegistration aliasReg;
     aliasReg.version = 1;
     aliasReg.alias = alias;
@@ -3763,7 +3793,9 @@ bool simple_wallet::register_alias(const std::vector<std::string> &args) {
     success_msg_writer(true) << "";
     success_msg_writer(true) << " XFG Alias registered successfully!";
     success_msg_writer(true) << "  Alias: @" << alias;
+    success_msg_writer(true) << "  Alias address (subaddress [" << aliasMajor << "," << aliasMinor << "]): " << walletAddress;
     success_msg_writer(true) << "  TX Hash: " << Common::podToHex(txInfo.hash);
+    success_msg_writer(true) << "  Privacy: alias is linked to the derived subaddress only — master was not exposed.";
     success_msg_writer(true) << "  The alias will be active after the transaction is confirmed.";
 
     try {

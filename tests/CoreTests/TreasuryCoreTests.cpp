@@ -817,7 +817,44 @@ void testCdBonusHeightBoundaries() {
 
 } // anonymous namespace
 
+// CD interest accrues per epoch and COMPOUNDS into the principal each epoch.
+// An auto-rolled CD stops compounding at its original maturity (rolloverEpoch)
+// while continuing to accrue on the frozen base. Nothing else pinned this, and
+// it is money math, so the exact figures are asserted rather than the shape.
+void testCdInterestCompounding() {
+  Logging::LoggerGroup nullLog;
+  Currency currency = CurrencyBuilder(nullLog).currency();
+  CommitmentIndex ci(currency);
+
+  const uint64_t RATE = 100000;  // 10% of FEE_POOL_RATE_PRECISION (1e6)
+  const uint64_t ED = parameters::EPOCH_DURATION_BLOCKS;
+  for (uint64_t e = 0; e <= 5; ++e) ci.recordEpochFeeRate(e, RATE, 100, 1000);
+
+  // 1000 over epochs 0..5 at 10%: 100,110,121,133,146,161 = 771.
+  // Simple interest would be 600 — compounding is deliberate.
+  uint64_t interest = currency.calculateCdInterest(1000, 0, (uint32_t)(5 * ED),
+                                                   ci, false, 0, false);
+  TEST(interest == 771);
+
+  // Auto-rolled with a 2-epoch original term: compounding stops after epoch 2,
+  // so later epochs accrue on the frozen base rather than a growing one.
+  uint64_t rolled = currency.calculateCdInterest(1000, 0, (uint32_t)(5 * ED),
+                                                 ci, false, (uint32_t)(2 * ED), true);
+  TEST(rolled < interest);
+  TEST(rolled > 600);
+
+  // No elapsed time accrues nothing.
+  TEST(currency.calculateCdInterest(1000, 100, 100, ci, false, 0, false) == 0);
+  TEST(currency.calculateCdInterest(1000, 200, 100, ci, false, 0, false) == 0);
+
+  // Interest scales linearly in principal at equal terms.
+  uint64_t small = currency.calculateCdInterest(1000, 0, (uint32_t)(2 * ED), ci, false, 0, false);
+  uint64_t big   = currency.calculateCdInterest(10000, 0, (uint32_t)(2 * ED), ci, false, 0, false);
+  TEST(big >= small * 10 - 10 && big <= small * 10 + 10);
+}
+
 int main() {
+  testCdInterestCompounding();
   testBankingIndexTallyAndReversal();
   testBankingIndexSerializationRoundtrip();
   testFiftyFiftySplitDust();

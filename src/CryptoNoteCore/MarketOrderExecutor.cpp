@@ -52,10 +52,7 @@ MarketOrderExecutor::CascadeState MarketOrderExecutor::cascadeIntoOrderbook(
         break;
       }
 
-      uint64_t levelDepth = 0;
-      for (const auto& entry : it->second) {
-        levelDepth += entry.amount;
-      }
+      uint64_t levelDepth = orderbook.getAskLevelDepth(askPrice);
 
       uint64_t takeAmount = std::min(remaining, levelDepth);
       uint64_t cost = static_cast<uint64_t>((static_cast<uint128_t>(takeAmount) * askPrice) / parameters::COIN);
@@ -74,10 +71,7 @@ MarketOrderExecutor::CascadeState MarketOrderExecutor::cascadeIntoOrderbook(
         break;
       }
 
-      uint64_t levelDepth = 0;
-      for (const auto& entry : it->second) {
-        levelDepth += entry.amount;
-      }
+      uint64_t levelDepth = orderbook.getBidLevelDepth(bidPrice);
 
       uint64_t takeAmount = std::min(remaining, levelDepth);
       uint64_t cost = static_cast<uint64_t>((static_cast<uint128_t>(takeAmount) * bidPrice) / parameters::COIN);
@@ -87,10 +81,6 @@ MarketOrderExecutor::CascadeState MarketOrderExecutor::cascadeIntoOrderbook(
       state.levels++;
       remaining -= takeAmount;
     }
-  }
-
-  if (remaining > 0 && !state.halted) {
-    state.halted = false;
   }
 
   return state;

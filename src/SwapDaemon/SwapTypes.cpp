@@ -63,6 +63,8 @@ bool swapPairFromString(const std::string& s, SwapPair& out) {
   if (iequal(p, "MONAD", n))   { out = SwapPair::MONAD;     return true; }
   if (iequal(p, "OPTIMISM", n)) { out = SwapPair::OPTIMISM;  return true; }
   if (iequal(p, "OP", n))      { out = SwapPair::OPTIMISM;  return true; }
+  if (iequal(p, "DOT", n))     { out = SwapPair::DOT;       return true; }
+  if (iequal(p, "POLKADOT", n)) { out = SwapPair::DOT;      return true; }
   return false;
 }
 
@@ -103,6 +105,7 @@ const char* swapPairToString(SwapPair p) {
     case SwapPair::TON:     return "TON";
     case SwapPair::MONAD:   return "MONAD";
     case SwapPair::OPTIMISM: return "OPTIMISM";
+    case SwapPair::DOT:      return "DOT";
   }
   return "???";
 }

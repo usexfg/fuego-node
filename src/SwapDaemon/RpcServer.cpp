@@ -413,11 +413,38 @@ std::string RpcServer::handleListSwaps(const std::string& /*params*/) {
       first = false;
       sm.setEncryptionKey("");
       std::string json = sm.serialize();
-      // Add a human-readable state name for clients that render states as
-      // strings (the numeric state id remains in "state" for DB compat).
       Common::JsonValue rec = Common::JsonValue::fromString(json);
       rec.insert("stateName", std::string(swapStateToString(sm.currentState())));
       rec.insert("pairName", std::string(swapPairToString(sm.params().pair)));
+      const SwapParams& p = sm.params();
+      if (!p.ctrLockTxId.empty()) {
+        rec.insert("ctrLockTxId", p.ctrLockTxId);
+        rec.insert("requiredConfirmations", static_cast<int64_t>(p.requiredConfirmations ? p.requiredConfirmations : 6));
+        auto* client = m_daemon.getChainClient(p.pair);
+        if (client) {
+          ChainClientResult r;
+          client->getTransactionDetails(p.ctrLockTxId, r);
+          rec.insert("confirmations", static_cast<int64_t>(r.confirmations));
+          rec.insert("blockHeight", static_cast<int64_t>(r.blockHeight));
+          rec.insert("spvVerified", static_cast<int64_t>(r.spvVerified ? 1 : 0));
+          rec.insert("confirmed", static_cast<int64_t>(r.confirmed ? 1 : 0));
+          if (!r.success && !r.error.empty()) rec.insert("spvError", r.error);
+          uint64_t tip = 0;
+          if (client->getCurrentHeight(tip)) rec.insert("currentHeight", static_cast<int64_t>(tip));
+        } else {
+          rec.insert("confirmations", static_cast<int64_t>(0));
+          rec.insert("blockHeight", static_cast<int64_t>(0));
+          rec.insert("spvVerified", static_cast<int64_t>(false ? 1 : 0));
+          rec.insert("confirmed", static_cast<int64_t>(false ? 1 : 0));
+          rec.insert("spvError", std::string("chain client not configured"));
+        }
+      } else {
+        rec.insert("confirmations", static_cast<int64_t>(0));
+        rec.insert("blockHeight", static_cast<int64_t>(0));
+        rec.insert("spvVerified", static_cast<int64_t>(false ? 1 : 0));
+        rec.insert("confirmed", static_cast<int64_t>(false ? 1 : 0));
+        rec.insert("requiredConfirmations", static_cast<int64_t>(p.requiredConfirmations ? p.requiredConfirmations : 6));
+      }
       oss << rec.toString();
     }
   }
@@ -442,6 +469,35 @@ std::string RpcServer::handleSwapStatus(const std::string& params) {
     Common::JsonValue rec = Common::JsonValue::fromString(sm.serialize());
     rec.insert("stateName", std::string(swapStateToString(sm.currentState())));
     rec.insert("pairName", std::string(swapPairToString(sm.params().pair)));
+    const SwapParams& p = sm.params();
+    if (!p.ctrLockTxId.empty()) {
+      rec.insert("ctrLockTxId", p.ctrLockTxId);
+      rec.insert("requiredConfirmations", static_cast<int64_t>(p.requiredConfirmations ? p.requiredConfirmations : 6));
+      auto* client = m_daemon.getChainClient(p.pair);
+      if (client) {
+        ChainClientResult r;
+        client->getTransactionDetails(p.ctrLockTxId, r);
+        rec.insert("confirmations", static_cast<int64_t>(r.confirmations));
+        rec.insert("blockHeight", static_cast<int64_t>(r.blockHeight));
+        rec.insert("spvVerified", static_cast<int64_t>(r.spvVerified ? 1 : 0));
+        rec.insert("confirmed", static_cast<int64_t>(r.confirmed ? 1 : 0));
+        if (!r.success && !r.error.empty()) rec.insert("spvError", r.error);
+        uint64_t tip = 0;
+        if (client->getCurrentHeight(tip)) rec.insert("currentHeight", static_cast<int64_t>(tip));
+      } else {
+        rec.insert("confirmations", static_cast<int64_t>(0));
+        rec.insert("blockHeight", static_cast<int64_t>(0));
+        rec.insert("spvVerified", static_cast<int64_t>(false ? 1 : 0));
+        rec.insert("confirmed", static_cast<int64_t>(false ? 1 : 0));
+        rec.insert("spvError", std::string("chain client not configured"));
+      }
+    } else {
+      rec.insert("confirmations", static_cast<int64_t>(0));
+      rec.insert("blockHeight", static_cast<int64_t>(0));
+      rec.insert("spvVerified", static_cast<int64_t>(false ? 1 : 0));
+      rec.insert("confirmed", static_cast<int64_t>(false ? 1 : 0));
+      rec.insert("requiredConfirmations", static_cast<int64_t>(p.requiredConfirmations ? p.requiredConfirmations : 6));
+    }
     return R"({"swap": )" + rec.toString() + "}";
   } catch (const std::exception& e) {
     return rpcError(-32602, std::string("Parameter error: ") + e.what());

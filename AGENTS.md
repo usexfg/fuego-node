@@ -140,6 +140,15 @@ NOT protocol earnings:
 
 Hooks block edits to `.env` / wallets / keys. Build ground truth is `make -j$(nproc)`.
 
+## Source Change Log (mandatory)
+
+Every feature or fix that touches source code requires a `CHANGELOG.agent.md` file at the repo root. Each entry contains:
+- **Feature name** and start date
+- **Task list** with numbered tasks, owner (agent/model name), date, and status (TODO / IN PROGRESS / DONE)
+- **Sign-off table** marking gate completion (build compiles, tests pass, all tasks done)
+
+Agents sign off with their name and date when completing tasks. No source changes land without a corresponding task list entry. The log persists across sessions so any agent can pick up where another left off.
+
 ## OKOC Skill Chain
 
 When working in this repo, the default skill chain auto-loads:

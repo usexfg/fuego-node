@@ -314,6 +314,12 @@ struct ChainClientConfig {
   uint64_t    opChainId    = 10;
   std::string opHtlcBinPath;
 
+  // DOT (Polkadot Relay — Substrate, SS58 prefix 0)
+  std::string dotHost;
+  uint16_t    dotPort       = 9933;
+  std::string dotAddress;           // SS58 address
+  std::string dotSeedPhrase;        // Substrate seed phrase or hex seed
+
   // XFG wallet key for signing managed offers (hex-encoded 64-char Ed25519 secret key)
   std::string xfgSecretKeyHex;
   std::string xfgViewKeyHex;

@@ -754,7 +754,8 @@ namespace CryptoNote
           deposit.amount,
           deposit.height,
           currentHeight,
-          commitmentIndex);
+          commitmentIndex,
+          false, deposit.term, false);
       if (deposit.height < m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_11)) {
         interest = 0;
       }

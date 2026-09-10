@@ -1,6 +1,6 @@
 <img title="The Long Night Is Coming" src="https://github.com/usexfg/fuego-data/blob/master/fuego-images/fuegoline.gif?raw=true"><img/>
 
-### Fuego is open-source peer-to-peer decentralized private cryptocurrency built by advocates of freedom thru sound money and free open-source software.
+### Fuego is a sovereign privacy blockchain bank built on sound money cryptocurrency b built by advocates of freedom thru sound money and free open-source software.
 
 Based upon the CryptoNote protocol & philosophy.
 
@@ -21,9 +21,9 @@ Based upon the CryptoNote protocol & philosophy.
 | **Core** | CryptoNote | Ring-signature privacy at protocol level |
 | **Core** | Dynamic Ring Size | 32, 16, or min 8 decoys per transaction, adaptive to pool depth |
 | **Core** | Sub-addresses | Multiple addresses from single seed; integrated (v1) wallets |
-| **Core** | Fire Aliases | ONLY 8 characters, on-chain '@' aliases for fire addresses; (@fuegoxfg for development) integrated with ecosystem wallets |
-| **Assets** | HΞ∆T colored-flatcoin | Stable inflation-adjusted (since Q1 2009 1 USD) value ⩰ $1.58 | Burn XFG to mint at PI redemption price |
-| **Assets** | Hearth Exchange | Block-discrete on-chain exchange with adaptive-spread AMM pool band; batch-clears at VWAP |
+| **Core** | Fire Aliases | 8 characters ONLY, on-chain '@' aliases for fire addresses; (@fuegoxfg for development) integrated with ecosystem wallets |
+| **Assets** | HΞ∆T colored-flatcoin | Stable inflation-adjusted (since Q1 2009 1 USD) value ⩰ $1.58 | Burn XFG to mint at pool price |
+| **Assets** | Hearth Floor | Block-discrete on-chain exchange with adaptive-spread AMM pool band; batch-clears at VWAP |
 | **Assets** | Certificates of Deposit | HEAT-denominated time-locked deposits earning yield from protocol fees |
 | **Stability** | PI Controller | Negative-feedback redemption price targeting value-band equilibrium |
 | **Swaps** | atomic swaps | Cross-chain XFG swaps via COMIT protocol with HTLC adaptor signatures |

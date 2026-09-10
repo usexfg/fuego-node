@@ -358,8 +358,6 @@ std::cout << "XFG Locked in Deposits : " << (totalCoinsOnDeposits >= 1000000 ? c
 std::cout << "Total HΞ∆T Locked in CDs : " << (heatLockedInCDs >= 1000000 ? currency.formatAmount(heatLockedInCDs) : "0.0") << " HΞ∆T (" << (totalHeatSupply > 0 ? currency.formatAmount(calculatePercent(currency, heatLockedInCDs, totalHeatSupply)) : "0.0") << "%)" << std::endl;
 std::cout << "Circulating HΞ∆T : " << currency.formatAmount(circulatingHeat) << " HΞ∆T (" << (totalHeatSupply > 0 ? currency.formatAmount(calculatePercent(currency, circulatingHeat, totalHeatSupply)) : "0.0") << "%)" << std::endl;
 std::cout << "Total HΞ∆T Minted to date : " << currency.formatAmount(totalHeatSupply) << " HΞ∆T" << std::endl;
-std::cout << "Total DIGM Minted to date : " << currency.formatAmount(heatMetrics.digmSupply) << " DIGM" << std::endl;
-std::cout << "DIGM Peg : 1 DIGM = 0.10 HΞ∆T" << std::endl;
   std::cout << "Total XFG Burned to date : " << (totalCoinsEthereal >= 1000000 ? currency.formatAmount(totalCoinsEthereal) : "0.0") << " " << (m_core.currency().isTestnet() ? "TEST" : "XFG") << " (" << (totalCoinsEthereal > 0 ? currency.formatAmount(calculatePercent(currency, totalEternalFlame, totalCoinsEthereal)) : "0.0") << "% E-Flame)" << std::endl;
   std::cout << "Treasury HΞ∆T Reserve : " << (heatMetrics.treasuryHeatReserve >= 1000000 ? currency.formatAmount(heatMetrics.treasuryHeatReserve) : "0.0") << " HΞ∆T" << std::endl;
   std::cout << "SWF Pending (circulating removed, not total): " << currency.formatAmount(swfBalance) << " " << (m_core.currency().isTestnet() ? "TEST" : "XFG") << std::endl;

@@ -318,6 +318,12 @@ bool loadChainClientConfig(const std::string& path,
   out.opChainId    = jsonGetUint(json, "op_chain_id", 10);
   out.opHtlcBinPath= jsonGetStr(json, "op_htlc_bin", out.ethHtlcBinPath);
 
+  // DOT (Polkadot Relay — Substrate)
+  out.dotHost       = jsonGetStr(json, "dot_rpc_host", "");
+  out.dotPort       = static_cast<uint16_t>(jsonGetUint(json, "dot_rpc_port", 9933));
+  out.dotAddress    = jsonGetStr(json, "dot_address");
+  out.dotSeedPhrase = jsonGetStr(json, "dot_seed_phrase");
+
   out.xmrSpendKeyHex = jsonGetStr(json, "xmr_spend_key");
   out.xmrViewKeyHex  = jsonGetStr(json, "xmr_view_key");
 

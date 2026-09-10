@@ -51,6 +51,12 @@ static const double SEED_DASH_USD = 30.0;
 static const double SEED_ZEC_USD = 45.0;
 static const double SEED_PULSEX_USD = 0.0007;  // native PLS on PulseChain
 static const double SEED_ZANO_USD = 3.20;
+static const double SEED_BTC_USD = 65000.0;
+static const double SEED_LTC_USD = 90.0;
+static const double SEED_KMD_USD = 0.35;
+static const double SEED_MONAD_USD = 1.20;
+static const double SEED_OP_USD = 1.40;
+static const double SEED_DOT_USD = 6.50;
 
 // Minimum completed swaps before TWAP replaces seed rate
 static const size_t TWAP_MIN_TRADES = 5;
@@ -112,6 +118,12 @@ double PriceOracle::getEffectiveRate(SwapPair pair) const {
     case SwapPair::ZEC: return SEED_ZEC_USD / xfgUsd;
     case SwapPair::PULSEX: return SEED_PULSEX_USD / xfgUsd;
     case SwapPair::ZANO: return SEED_ZANO_USD / xfgUsd;
+    case SwapPair::BTC: return SEED_BTC_USD / xfgUsd;
+    case SwapPair::LTC: return SEED_LTC_USD / xfgUsd;
+    case SwapPair::KMD_SPV: return SEED_KMD_USD / xfgUsd;
+    case SwapPair::MONAD: return SEED_MONAD_USD / xfgUsd;
+    case SwapPair::OPTIMISM: return SEED_OP_USD / xfgUsd;
+    case SwapPair::DOT: return SEED_DOT_USD / xfgUsd;
     default:            return 0.0;
   }
 }
@@ -142,6 +154,12 @@ double PriceOracle::getSeedRate(SwapPair pair) {
     case SwapPair::ZEC: return SEED_ZEC_USD / SEED_XFG_USD;
     case SwapPair::PULSEX: return SEED_PULSEX_USD / SEED_XFG_USD;
     case SwapPair::ZANO: return SEED_ZANO_USD / SEED_XFG_USD;
+    case SwapPair::BTC: return SEED_BTC_USD / SEED_XFG_USD;
+    case SwapPair::LTC: return SEED_LTC_USD / SEED_XFG_USD;
+    case SwapPair::KMD_SPV: return SEED_KMD_USD / SEED_XFG_USD;
+    case SwapPair::MONAD: return SEED_MONAD_USD / SEED_XFG_USD;
+    case SwapPair::OPTIMISM: return SEED_OP_USD / SEED_XFG_USD;
+    case SwapPair::DOT: return SEED_DOT_USD / SEED_XFG_USD;
     default:            return 0.0;
   }
 }
@@ -175,6 +193,12 @@ double PriceOracle::ctrDivisor(SwapPair pair) {
     case SwapPair::ZEC: return 1e8;       // zatoshis (1 ZEC = 1e8 zats)
     case SwapPair::PULSEX: return 1e18;   // PLS (18 decimals)
     case SwapPair::ZANO: return 1e12;     // atoms (1 ZANO = 1e12 atoms)
+    case SwapPair::BTC: return 1e8;       // satoshi
+    case SwapPair::LTC: return 1e8;       // litoshi
+    case SwapPair::KMD_SPV: return 1e8;   // satoshi
+    case SwapPair::MONAD: return 1e18;    // wei
+    case SwapPair::OPTIMISM: return 1e18; // wei
+    case SwapPair::DOT: return 1e10;      // planck (1 DOT = 1e10 planck)
     default:            return 1e8;
   }
 }

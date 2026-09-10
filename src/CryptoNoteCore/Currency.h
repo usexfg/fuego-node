@@ -227,14 +227,12 @@ public:
     // isLegacyBond=true uses legacy bond fee rate track (50% CD share for bug-era deposits)
     // term=0 skips loyalty bonus check (conservative cap); pass actual term for payout
     // autoRolled=true compounds interest at the auto-roll boundary (doubled earning period)
-    // includeLoyaltyBonus=false (v11+) returns BASE interest only; the loyalty
-    // bonus is paid separately from the Bonus Vault via calculateCdBonus().
+    // v11+: returns BASE interest only; loyalty bonus is paid from Bonus Vault via calculateCdBonus().
     uint64_t calculateCdInterest(uint64_t amount, uint32_t creationHeight,
                                   uint32_t currentHeight,
                                   const CommitmentIndex& commitmentIndex,
                                   bool isLegacyBond = false, uint32_t term = 0,
-                                  bool autoRolled = false,
-                                  bool includeLoyaltyBonus = true) const;
+                                  bool autoRolled = false) const;
     // v11+: BV-backed loyalty bonus. Σ over locked epochs of
     // bonusHeat_e × amount × tierWeight(term) / weightedBase_e — realized BV
     // inflows only, so total payouts can never exceed the vault (no
