@@ -287,8 +287,28 @@ bool adaptor_extract_secret(SwapParams& params,
          reinterpret_cast<const unsigned char*>(&s1_adapted),
          reinterpret_cast<const unsigned char*>(&s1));
 
-  return sc_isnonzero(
-      reinterpret_cast<const unsigned char*>(&params.adaptorSecret)) != 0;
+  // AUDIT 1.2 / 3.2: the recovered scalar is only usable if it actually opens
+  // the adaptor point T published for THIS swap. A malformed or rogue on-chain
+  // signature (protocol deviation, reorg, wrong tx) otherwise yields a wrong t;
+  // adaptor_aggregate() would fold it into our claim, which then fails
+  // consensus and strands our funds until the timeout refund. Verify t*G == T
+  // (and t != 0) before returning success; wipe on mismatch.
+  if (sc_isnonzero(
+        reinterpret_cast<const unsigned char*>(&params.adaptorSecret)) == 0) {
+    return false;
+  }
+  {
+    Crypto::PublicKey derivedT;
+    if (!Crypto::secret_key_to_public_key(params.adaptorSecret, derivedT) ||
+        std::memcmp(&derivedT, &params.adaptorPoint,
+                    sizeof(Crypto::PublicKey)) != 0) {
+      volatile unsigned char* p =
+          reinterpret_cast<volatile unsigned char*>(&params.adaptorSecret);
+      for (size_t i = 0; i < sizeof(params.adaptorSecret); ++i) p[i] = 0;
+      return false;
+    }
+  }
+  return true;
 }
 
 } // namespace XfgSwap

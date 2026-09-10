@@ -5,6 +5,18 @@ pragma solidity ^0.8.20;
 /// @notice Locks ETH with a keccak256 hash lock and block-height timeout
 contract HashedTimelock {
 
+    // Minimal non-reentrancy guard. `claim`/`refund` now use `.call` for the
+    // payout (see AUDIT 6.2) so the 2300-gas stipend of `.transfer` no longer
+    // bricks smart-contract-wallet recipients; the guard preserves the
+    // no-reentrancy property that `.transfer` used to give for free.
+    uint256 private _entered;
+    modifier nonReentrant() {
+        require(_entered == 0, "Reentrant call");
+        _entered = 1;
+        _;
+        _entered = 0;
+    }
+
     struct LockContract {
         address payable sender;
         address payable recipient;
@@ -55,22 +67,31 @@ contract HashedTimelock {
     }
 
     /// @notice Claim locked ETH by revealing the preimage
-    function claim(bytes32 contractId, bytes32 preimage) external {
+    function claim(bytes32 contractId, bytes32 preimage) external nonReentrant {
         LockContract storage c = contracts[contractId];
         require(c.amount > 0, "Contract not found");
         require(!c.claimed, "Already claimed");
         require(!c.refunded, "Already refunded");
         require(keccak256(abi.encodePacked(preimage)) == c.hashLock, "Invalid preimage");
 
+        // Checks-effects-interactions: state finalized before the external call.
         c.claimed = true;
         c.preimage = preimage;
-        c.recipient.transfer(c.amount);
+        uint256 amount = c.amount;
 
         emit Claimed(contractId, preimage);
+
+        // AUDIT 6.2: pay out with `.call` (all forwarded gas) instead of
+        // `.transfer` (2300 gas). A contract-wallet recipient whose receive()
+        // costs > 2300 gas would otherwise make BOTH claim and refund revert
+        // forever, permanently locking the funds. nonReentrant + CEI above
+        // keep this safe.
+        (bool ok, ) = c.recipient.call{value: amount}("");
+        require(ok, "ETH transfer failed");
     }
 
     /// @notice Refund locked ETH after timeout
-    function refund(bytes32 contractId) external {
+    function refund(bytes32 contractId) external nonReentrant {
         LockContract storage c = contracts[contractId];
         require(c.amount > 0, "Contract not found");
         require(!c.claimed, "Already claimed");
@@ -78,9 +99,12 @@ contract HashedTimelock {
         require(block.number >= c.timeoutBlock, "Timeout not reached");
 
         c.refunded = true;
-        c.sender.transfer(c.amount);
+        uint256 amount = c.amount;
 
         emit Refunded(contractId);
+
+        (bool ok, ) = c.sender.call{value: amount}("");
+        require(ok, "ETH transfer failed");
     }
 
     /// @notice Check contract details

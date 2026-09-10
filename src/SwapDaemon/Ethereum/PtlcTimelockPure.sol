@@ -28,6 +28,16 @@ pragma solidity ^0.8.20;
 ///
 /// Checks-effects-interactions throughout; no external calls before state is
 /// finalized; custom errors for every failure path.
+///
+/// @custom:staged  NOT DEPLOYABLE AS-IS. This contract targets the draft
+///   EIP-6601 secp256k1 precompiles, which are not live on any chain, and it
+///   only compiles with `viaIR = true` + optimizer enabled (the precompile
+///   plumbing is stack-heavy). `EthChainClient::supportsPurePtlc()` returns
+///   false, so no swap uses it. The AUDIT 6.7 change below (on-chain adaptor
+///   identity `(s - s')*G == T`) makes the strict-mode logic correct for when
+///   this is eventually productionised and independently audited. The LIVE EVM
+///   PTLC path is PointTimelock.sol, whose ecrecover check already proves
+///   t*G == T.
 contract PtlcTimelockPure {
 
     // ── Types ─────────────────────────────────────────────────────────────
@@ -37,6 +47,9 @@ contract PtlcTimelockPure {
         address payable recipient;
         uint256 amount;
         bytes32 ptlcPoint;    // x-only adaptor point T = t*G (never zero)
+        bytes32 ptlcPointY;   // AUDIT 6.7: affine y of T — needed for the
+                              // on-chain adaptor-identity check t*G == T
+                              // (x-only cannot distinguish T from -T).
         bytes32 pCombinedX;   // MuSig2 aggregate key P, affine x — equation + verifier binding
         bytes32 pCombinedY;   // MuSig2 aggregate key P, affine y
         bytes32 presigRx;     // presignature nonce R, affine x — bound at lock time
@@ -66,6 +79,10 @@ contract PtlcTimelockPure {
     bytes32 private constant GY =
         0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8;
 
+    /// @dev secp256k1 group order n (AUDIT 6.7 — for t = s - s' mod n).
+    uint256 private constant N =
+        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141;
+
     /// @dev 2*G — known-answer for precompile probing.
     bytes32 private constant TWO_GX =
         0xC6047F9441ED7D6D3045406E95C07CD85C778E4B8CEF3CA7ABAC09B95C709EE5;
@@ -94,6 +111,7 @@ contract PtlcTimelockPure {
     error ZeroCombinedKey();
     error ZeroPresigPoint();
     error TimeoutInPast();
+    error TimeoutNotReached();   // pre-existing: referenced in refund() but never declared
     error DuplicateContract();
     error NotFound();
     error AlreadyClaimed();
@@ -122,8 +140,12 @@ contract PtlcTimelockPure {
     /// @param presigRy   Affine y of the presignature nonce R.
     /// @param timeoutBlock Block after which the sender can refund.
     /// @return contractId keccak256(sender, recipient, value, ptlcPoint, timeoutBlock)
+    /// @param ptlcPointY Affine y of T (AUDIT 6.7 — the strict-mode claim now
+    ///                   verifies t*G == T as a full point, so both coords are
+    ///                   bound at lock time).
     function lockWithPoint(address payable recipient,
                            bytes32 ptlcPoint,
+                           bytes32 ptlcPointY,
                            bytes32 pCombinedX,
                            bytes32 pCombinedY,
                            bytes32 presigRx,
@@ -133,13 +155,13 @@ contract PtlcTimelockPure {
     {
         if (msg.value == 0) revert ZeroValue();
         if (recipient == address(0)) revert ZeroRecipient();
-        if (ptlcPoint == bytes32(0)) revert ZeroPoint();
+        if (ptlcPoint == bytes32(0) && ptlcPointY == bytes32(0)) revert ZeroPoint();
         if (pCombinedX == bytes32(0) && pCombinedY == bytes32(0)) revert ZeroCombinedKey();
         if (presigRx == bytes32(0) && presigRy == bytes32(0)) revert ZeroPresigPoint();
         if (timeoutBlock <= block.number) revert TimeoutInPast();
 
         contractId = keccak256(abi.encodePacked(
-            msg.sender, recipient, msg.value, ptlcPoint, timeoutBlock
+            msg.sender, recipient, msg.value, ptlcPoint, ptlcPointY, timeoutBlock
         ));
 
         if (locks[contractId].amount != 0) revert DuplicateContract();
@@ -154,6 +176,7 @@ contract PtlcTimelockPure {
             recipient: recipient,
             amount: msg.value,
             ptlcPoint: ptlcPoint,
+            ptlcPointY: ptlcPointY,
             pCombinedX: pCombinedX,
             pCombinedY: pCombinedY,
             presigRx: presigRx,
@@ -200,10 +223,16 @@ contract PtlcTimelockPure {
     ///   secret hand-off always happens off-chain via ClaimedPtlc data.
     ///
     /// @param contractId Lock identifier from lockWithPoint.
-    /// @param adaptorSig 64-byte completed adaptor signature.
+    /// @param adaptorSig 64-byte completed adaptor signature (R_x ‖ s).
     /// @param presigR    Presignature nonce x-coordinate (must equal the
     ///                   nonce bound at lock time).
-    function claimPtlc(bytes32 contractId, bytes calldata adaptorSig, bytes32 presigR)
+    /// @param sPrime     AUDIT 6.7 — the pre-signature scalar s' exchanged
+    ///                   off-chain. StrictPrecompile mode now checks
+    ///                   (s - s')*G == T on-chain, so a claim can only settle
+    ///                   by revealing the real adaptor secret t = s - s'.
+    ///                   Ignored by EcrecoverFallback (which is not a proof —
+    ///                   see the contract-level NatSpec).
+    function claimPtlc(bytes32 contractId, bytes calldata adaptorSig, bytes32 presigR, bytes32 sPrime)
         external
     {
         PureLock storage c = locks[contractId];
@@ -219,7 +248,7 @@ contract PtlcTimelockPure {
         bytes32 e = keccak256(abi.encodePacked(presigR, c.ptlcPoint, contractId));
 
         if (verifyMode == VerifyMode.StrictPrecompile) {
-            _verifyStrict(c, e, adaptorSig);
+            _verifyStrict(c, e, adaptorSig, sPrime);
         } else {
             _verifyEcrecoverFallback(c, e, adaptorSig);
         }
@@ -268,29 +297,46 @@ contract PtlcTimelockPure {
 
     // ── Internal: strict precompile path ───────────────────────────────────
 
-    function _verifyStrict(PureLock storage c, bytes32 e, bytes calldata adaptorSig)
+    function _verifyStrict(PureLock storage c, bytes32 e, bytes calldata adaptorSig, bytes32 sPrime)
         internal view
     {
         if (!_ecmulAvailable() || !_ecaddAvailable()) revert("ECMUL_UNAVAILABLE");
 
         bytes32 sScalar = bytes32(adaptorSig[32:64]);
 
-        // LHS: s*G
-        (bytes32 lx, bytes32 ly) = _ecmul(sScalar, GX, GY);
-        // RHS: e*P + R
-        (bytes32 px, bytes32 py) = _ecmul(bytes32(e), c.pCombinedX, c.pCombinedY);
-        (bytes32 rx, bytes32 ry) = _ecadd(px, py, c.presigRx, c.presigRy);
+        // (1) Completed-Schnorr equation: s*G == e*P + R.
+        //     Scoped so its locals free the stack before check (2).
+        {
+            (bytes32 lx, bytes32 ly) = _ecmul(sScalar, GX, GY);
+            (bytes32 px, bytes32 py) = _ecmul(bytes32(e), c.pCombinedX, c.pCombinedY);
+            (bytes32 rhsX, bytes32 rhsY) = _ecadd(px, py, c.presigRx, c.presigRy);
+            if (!(lx == rhsX && ly == rhsY)) revert AdaptorEquationFailed();
+        }
 
-        if (!(lx == rx && ly == ry)) revert AdaptorEquationFailed();
+        // (2) AUDIT 6.7 — adaptor identity, enforced ON-CHAIN:
+        //     t = s - s' (mod n) must be nonzero and satisfy t*G == T as a
+        //     FULL point. This pins the claim to the real adaptor secret for
+        //     the point T bound at lock time — an attacker cannot pick an
+        //     arbitrary s' (the -t / n-t ambiguity is resolved by checking
+        //     both affine coordinates, which x-only could not do). The
+        //     ClaimedPtlc event then carries material from which the XFG-side
+        //     counterparty recovers exactly that t.
+        uint256 t = addmod(uint256(sScalar), N - (uint256(sPrime) % N), N);
+        if (t == 0) revert AdaptorEquationFailed();
+        (bytes32 tx_, bytes32 ty_) = _ecmul(bytes32(t), GX, GY);
+        if (tx_ != c.ptlcPoint || ty_ != c.ptlcPointY) revert AdaptorEquationFailed();
     }
 
+    // NB: `ret` is `bytes memory` — index-range slicing is calldata-only, so
+    // decode the 64-byte precompile output with abi.decode (pre-existing
+    // compile fix, needed for the AUDIT 6.7 change to build).
     function _ecmul(bytes32 scalar, bytes32 x, bytes32 y)
         internal view returns (bytes32 ox, bytes32 oy)
     {
         (bool ok, bytes memory ret) =
             PRECOMPILE_SECP_ECMUL.staticcall(abi.encodePacked(x, y, scalar));
         if (!ok || ret.length != 64) revert("ECMUL_UNAVAILABLE");
-        return (bytes32(ret[0:32]), bytes32(ret[32:64]));
+        return abi.decode(ret, (bytes32, bytes32));
     }
 
     function _ecadd(bytes32 x1, bytes32 y1, bytes32 x2, bytes32 y2)
@@ -299,21 +345,23 @@ contract PtlcTimelockPure {
         (bool ok, bytes memory ret) =
             PRECOMPILE_SECP_ECADD.staticcall(abi.encodePacked(x1, y1, x2, y2));
         if (!ok || ret.length != 64) revert("ECMUL_UNAVAILABLE");
-        return (bytes32(ret[0:32]), bytes32(ret[32:64]));
+        return abi.decode(ret, (bytes32, bytes32));
     }
 
     function _ecmulAvailable() internal view returns (bool) {
         (bool ok, bytes memory ret) =
             PRECOMPILE_SECP_ECMUL.staticcall(abi.encodePacked(GX, GY, bytes32(uint256(2))));
-        return ok && ret.length == 64 &&
-               bytes32(ret[0:32]) == TWO_GX && bytes32(ret[32:64]) == TWO_GY;
+        if (!ok || ret.length != 64) return false;
+        (bytes32 rx, bytes32 ry) = abi.decode(ret, (bytes32, bytes32));
+        return rx == TWO_GX && ry == TWO_GY;
     }
 
     function _ecaddAvailable() internal view returns (bool) {
         (bool ok, bytes memory ret) =
             PRECOMPILE_SECP_ECADD.staticcall(abi.encodePacked(GX, GY, GX, GY));
-        return ok && ret.length == 64 &&
-               bytes32(ret[0:32]) == TWO_GX && bytes32(ret[32:64]) == TWO_GY;
+        if (!ok || ret.length != 64) return false;
+        (bytes32 rx, bytes32 ry) = abi.decode(ret, (bytes32, bytes32));
+        return rx == TWO_GX && ry == TWO_GY;
     }
 
     // ── Internal: ecrecover fallback path ──────────────────────────────────
