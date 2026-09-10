@@ -1,8 +1,8 @@
-<img title="The Long Night Is Coming" src="https://github.com/usexfg/fuego-data/blob/master/fuego-images/fuegoline.gif?raw=true"><img/>
+<img title="The Long Night Is Coming, and the DEBT comes with it" src="https://github.com/usexfg/fuego-data/blob/master/fuego-images/fuegoline.gif?raw=true"><img/>
 
-### Fuego is a sovereign privacy blockchain bank built on sound money cryptocurrency b built by advocates of freedom thru sound money and free open-source software.
+### Fuego is a sovereign privacy blockchain banking network & cryptocurrency built and maintained by advocates of freedom thru sound money and free open-source software.
 
-Based upon the CryptoNote protocol & philosophy.
+Based on the CryptoNote protocol.
 
 #### Resources
 
@@ -22,16 +22,15 @@ Based upon the CryptoNote protocol & philosophy.
 | **Core** | Dynamic Ring Size | 32, 16, or min 8 decoys per transaction, adaptive to pool depth |
 | **Core** | Sub-addresses | Multiple addresses from single seed; integrated (v1) wallets |
 | **Core** | Fire Aliases | 8 characters ONLY, on-chain '@' aliases for fire addresses; (@fuegoxfg for development) integrated with ecosystem wallets |
-| **Assets** | HΞ∆T colored-flatcoin | Stable inflation-adjusted (since Q1 2009 1 USD) value ⩰ $1.58 | Burn XFG to mint at pool price |
+| **Assets** | ΗΞΔŦ flatcoin | XFG-colored coin pegged to purchasing power by rate of inflation on 1 USD since Q1|2009 value ⩰ $1.58 | Burn XFG to mint at pool price |
 | **Assets** | Hearth Floor | Block-discrete on-chain exchange with adaptive-spread AMM pool band; batch-clears at VWAP |
 | **Assets** | Certificates of Deposit | HEAT-denominated time-locked deposits earning yield from protocol fees |
-| **Stability** | PI Controller | Negative-feedback redemption price targeting value-band equilibrium |
-| **Swaps** | atomic swaps | Cross-chain XFG swaps via COMIT protocol with HTLC adaptor signatures |
+| **Swaps** | Atomic Swaps | Cross-chain XFG swaps via COMIT protocol with PTLC/HTLC adaptor signatures |
 | **Swaps** | ЅШ𑫛𑫒**❋**XFG | Integrated TUI, Go-based swap engine with inter-chain fee routing |
-| **Network** | I2P / Tor / Meshtastic* | Pluggable transport-layer privacy (*)research phase|
+| **Network** | I2P / Tor  | Pluggable transport-layer privacy |
 | **Wallet** | `fire_wallet`| Full-featured CLI: send, receive, deposits, HEAT mint/swap, pool operations |
 | **Wallet** | TUI(suite) | Go-based terminal UI for atomic swaps, CD operations, HEAT mint |
-| **GUI Wallet/SDK** | Fuego Wallet | Cross-platform GUI (Flutter/Rust) — [fuego-wallet](https://github.com/usexfg/fuego-wallet) Fuego SDK |
+| **GUI Wallet/SDK** | Fuego Valise | Cross-platform GUI (Flutter/Rust) — [fuego-valise](https://github.com/usexfg/fuego-valise) Fuego SDK |
 | **Tools** | RPC API | JSON-RPC: heat_metrics, amm_quote, amm_pool_info, swap fees, CD queries |
 | **Dev Tools** | MCP Server | AI-agent integration for swap/mint automation |
 | **Dev Tools** | Fuego-Skills | AI-agent tools for codebase analytics, knowledge graph, and specialization |
@@ -172,30 +171,30 @@ make build-tui
 
 Navigate with arrow keys or j/k, select with Enter, quit with q or Ctrl+C.
 
-### HΞ∆T Flatcoin & Hearth Exchange
+### ΗΞΔŦ Flatcoin & Hearth Exchange
 
-HΞ∆⟙ is Fuego's algorithmic flatcoin — a stable asset pegged to purchasing power. It is **not** pegged to a fiat currency; its target band adjusts for inflation over time beginning Jan 2009 ⩰ $1.58 ||  XFG/HΞ∆⟙ ratio at launch mints 10:1 (1 XFG ⩰ $0.15)
+ΗΞΔŦ is Fuego's flatcoin — a stable asset pegged to purchasing power. It is **not** pegged to a fiat currency; it is pegged to inflation rate over time beginning Jan 2009 ⩰ $1.58 ||  XFG/ΗΞΔŦ ratio at launch mints 10:1 (1 XFG ⩰ $0.15)
 
 | Operation | CLI Command | Description |
 |-----------|------------|-------------|
-| Mint HΞ∆⟙ | `mint_heat <xfg_amount>` | Burn XFG to create HΞ∆⟙ at PI redemption price |
-| Swap | `swap <dir> <in> <out> <min>` | Swap XFG↔HΞ∆T on Hearth Exchange at bid/ask spread |
+| Mint ΗΞΔŦ | `mint_heat <xfg_amount>` | Burn XFG to create ΗΞΔŦ at Hearth price |
+| Swap | `swap <dir> <in> <out> <min>` | Swap XFG↔ΗΞΔŦ on Hearth at bid/ask spread |
 | MM Pool Info | `pool_info` | Show exchange depth, MM pool orders, spread |
-| HΞ∆⟙ Metrics | `heat_info` | Show HΞ∆⟙ supply, redemption price, treasury, CD yield |
-| HΞ∆⟙ Balance | `balance` | Shows HΞ∆⟙ balance alongside XFG |
+| ΗΞΔŦ Metrics | `heat_info` | Show ΗΞΔŦ supply, redemption price, treasury, CD yield |
+| ΗΞΔŦ Balance | `balance` | Shows ΗΞΔŦ balance alongside XFG |
 
 **Daemon RPC endpoints**: `/heat_metrics`, `/amm_quote`, `/amm_pool_info`, `/addswapfee`
 
 **Key Properties**:
-- Launch ratio 10:1 (1 HΞ∆T = 10 XFG) at genesis
+- Launch ratio 10:1 (1 ΗΞΔŦ = 10 XFG) at genesis
 - Peg target $1.58 USD; mint premium hardcoded to **0 bps** (`HEAT_MINT_PREMIUM_BPS = 0`) — no premium, PI controller removed
-- Protocol buys or mints HΞ∆T for CD yield payments (structural demand, protocol pays 0% fee)
+- Protocol buys or mints ΗΞΔŦ for CD yield payments (structural demand, protocol pays 0% fee)
 - On-chain exchange replaces constant-product AMM; MM pool orders regenerate each block ±10% depth
 - Pool reserves tracked (as a whole) on-chain with unspendable pool keys
 
-### Protocol Earnings (ONLY TWO)
+### Protocol Earnings 
 
-There are exactly **two** protocol earnings streams. Nothing else:
+There are exactly **two** protocol earnings streams
 
 | # | Stream | Rate | Split |
 |---|--------|------|-------|
@@ -208,13 +207,13 @@ NOT protocol earnings:
 
 ### Certificates of Deposit (CD) — V12 activation
 
-Epoch (900 blocks) term-locked HΞ∆⟙ deposits earning real yield thru protocol revenue, not inflation. Each CD requires an upfront banking fee of a mere 0.1% of CD amount (fee also in HΞ∆⟙) paid at time of CD creation (no fees at claim) and sent to **@fuegoxfg** as a donation to Fuego Development Fund.
+Epoch (900 blocks) term-locked ΗΞΔŦ deposits earning real yield thru protocol revenue, not inflation. Each CD requires an upfront banking fee of a mere 0.1% of CD amount (fee also in ΗΞΔŦ) paid at time of CD creation (no fees at claim) and sent to **@fuegoxfg** as a donation to Fuego Development Fund.
 
 | Command | Description |
 |---------|-------------|
-| `heat_deposit <amount> <term_epochs>` | Lock HΞ∆⟙ for epoch-based yield |
+| `heat_deposit <amount> <term_epochs>` | Lock ΗΞΔŦ for epoch-based yield |
 | `heat_withdraw <deposit_id>` | Redeem matured CD with accrued interest |
-| `heat_list` | List active HΞ∆⟙ CDs and balance |
+| `heat_list` | List active ΗΞΔŦ CDs and balance |
 
 ### Atomic Swaps (swapxfg)
 
@@ -228,7 +227,7 @@ Comprehensive docs at [docs.usexfg.org](https://docs.usexfg.org) and in `docs/`:
 - `api-reference/` — RPC API
 - `design/` + `developer/` — Architecture & protocols
 - `security/` — Audits & hardening
-- `HEAT_STABLECOIN_VISION.md` — HEAT economic design
+- `HEAT_STABLECOIN_VISION.md` — ΗΞΔŦ economic design
 - `ATOMIC_SWAP_PLAN.md` — Swap protocol plan
 - `PRIVACY_ROADMAP.md` — Privacy milestones
 
@@ -241,10 +240,10 @@ Comprehensive docs at [docs.usexfg.org](https://docs.usexfg.org) and in `docs/`:
 
 ---
 
-For the most user-friendly graphic interface experience, see [Fuego Desktop Wallet](https://github.com/usexfg/fuego-wallet).
+For the most user-friendly graphic interface experience, see [Fuego Desktop Wallet](https://github.com/usexfg/fuego-valise).
 
 _____________________________
-<sup>Made with ❤️‍🔥 by Elderfire Mob</sup>
+<sup>Made with ❤️‍🔥 for Fuego Mob</sup>
 
 
 Join Fuego's worldwide community [Discord](https://discordapp.com/invite/5UJcJJg), [Reddit](https://reddit.com/r/Fango), or [Twitter](https://twitter.com/usexfg).
