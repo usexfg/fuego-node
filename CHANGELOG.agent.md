@@ -89,3 +89,52 @@ Findings 01 and 02 were reproduced by execution before any change was made.
 | Build compiles (CryptoNoteCore, Daemon, SimpleWallet) | claude-code/opus-5 | 2026-09-09 | PASS |
 | Tests pass (test_hearth_amm 31/31; auction 57/57; orderbook 44/44; core 164/164) | claude-code/opus-5 | 2026-09-09 | PASS |
 | All tasks complete | claude-code/opus-5 | 2026-09-09 | PASS |
+
+---
+
+## Production-Quality Pass: Auction Scaling, Naming, Latent UB
+
+**Branch/Feature**: hearth-production-quality
+**Started**: 2026-09-09
+**Agent**: claude-code/opus-5
+**Status**: COMPLETE
+
+Remaining audit findings (05, 06) plus defects found while reviewing the
+in-flight working tree.
+
+### Task List
+
+| # | Task | Owner | Date | Status |
+|---|------|-------|------|--------|
+| 1 | Replace quadratic self-trade scan in `runAuction` with keyed lookup (finding 06) | claude-code/opus-5 | 2026-09-09 | DONE |
+| 2 | Rename `HEARTH_CD_SHARE_BPS` → `_PCT`: it holds a percentage and is divided by 100 (finding 05) | claude-code/opus-5 | 2026-09-09 | DONE |
+| 3 | Fix unbounded growth of `OrderbookIndex` depth maps (drained levels never erased) | claude-code/opus-5 | 2026-09-09 | DONE |
+| 4 | Default-initialize `SwapOrder` members — reading them was UB | claude-code/opus-5 | 2026-09-09 | DONE |
+| 5 | Pin CD interest compounding in `TreasuryCoreTests` (was uncovered money math) | claude-code/opus-5 | 2026-09-09 | DONE |
+| 6 | Restore stray indentation in `Currency::calculateCdInterest` | claude-code/opus-5 | 2026-09-09 | DONE |
+
+### Notes
+
+- Finding 06: the self-trade pass resolved each order's address by linear scan
+  over an accumulating vector, making it quadratic in order count on
+  attacker-influenceable mempool input. Now a keyed map. Measured at 4000
+  orders/side: **93.0 ms → 2.1 ms**, and scaling is linear rather than
+  quadratic. Results are unchanged — the container is only ever looked up by
+  key, and the existing 57 auction assertions still pass.
+- `SwapOrder` had no default member initializers, so `SwapOrder o;` left
+  `price`, `amount`, `filled` and `nonce` indeterminate. `PriceLevel::totalDepth()`
+  computes `amount - filled`, which would underflow on garbage. This was the
+  cause of the 4 pre-existing `test_p2p_orderbook` failures; that suite is now
+  61/61.
+- CD interest compounding was verified empirically before being pinned: 1000 over
+  6 epochs at 10% yields 771 (compounding) rather than 600 (simple). This is a
+  behavioural change from the previous simple-interest path and is now asserted
+  so it cannot drift silently.
+
+### Sign-Off
+
+| Gate | Signed By | Date | Result |
+|------|-----------|------|--------|
+| Build compiles (CryptoNoteCore, Daemon, SimpleWallet) | claude-code/opus-5 | 2026-09-09 | PASS |
+| Tests pass (hearth 31/31, auction 57/57, orderbook 44/44, p2p 61/61, core 170/170) | claude-code/opus-5 | 2026-09-09 | PASS |
+| All tasks complete | claude-code/opus-5 | 2026-09-09 | PASS |

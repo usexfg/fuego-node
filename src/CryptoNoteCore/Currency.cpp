@@ -417,7 +417,7 @@ double Currency::getBurnPercentage() const {
       }
     }
 
-return baseInterest;
+    return baseInterest;
   }
 
 /* ---------------------------------------------------------------------------------------------------- */

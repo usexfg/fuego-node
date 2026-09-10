@@ -9,6 +9,7 @@
 #include "Common/Int128.h"
 
 #include <algorithm>
+#include <map>
 #include <cstring>
 
 namespace CryptoNote {
@@ -20,10 +21,6 @@ namespace {
 
 bool lessByHash(const Crypto::Hash& a, const Crypto::Hash& b) {
   return memcmp(a.data, b.data, sizeof(a.data)) < 0;
-}
-
-bool sameHash(const Crypto::Hash& a, const Crypto::Hash& b) {
-  return memcmp(a.data, b.data, sizeof(a.data)) == 0;
 }
 
 // Price-time priority: better price first, then earlier deposit, then
@@ -66,11 +63,18 @@ AuctionResult runAuction(const std::vector<AuctionOrder>& bidsIn,
       AuctionOrder latest;
       bool latestIsAsk = false;
     };
-    std::vector<std::pair<Crypto::Hash, HashState>> states;
+    // Keyed lookup rather than a linear scan: this pass runs every block over
+    // attacker-influenceable mempool input, and scanning made it quadratic in
+    // order count. Only ever looked up by key, so ordering does not affect the
+    // outcome; HashCmp keeps the container itself deterministic regardless.
+    struct HashCmp {
+      bool operator()(const Crypto::Hash& a, const Crypto::Hash& b) const {
+        return lessByHash(a, b);
+      }
+    };
+    std::map<Crypto::Hash, HashState, HashCmp> states;
     auto findState = [&](const Crypto::Hash& h) -> HashState& {
-      for (auto& kv : states) if (sameHash(kv.first, h)) return kv.second;
-      states.push_back({h, {}});
-      return states.back().second;
+      return states[h];
     };
     // Pool orders are the protocol's own two-sided quotes, not a user trading
     // against themselves: they share one zeroed addressHash by construction.
@@ -88,14 +92,12 @@ AuctionResult runAuction(const std::vector<AuctionOrder>& bidsIn,
       if (!st.has || laterOrder(o, st.latest)) { st.latest = o; st.latestIsAsk = true; st.has = true; }
     }
     auto keepsBids = [&](const Crypto::Hash& h) -> bool {
-      for (const auto& kv : states)
-        if (sameHash(kv.first, h)) return !kv.second.latestIsAsk;
-      return true;
+      auto it = states.find(h);
+      return it == states.end() ? true : !it->second.latestIsAsk;
     };
     auto keepsAsks = [&](const Crypto::Hash& h) -> bool {
-      for (const auto& kv : states)
-        if (sameHash(kv.first, h)) return kv.second.latestIsAsk;
-      return true;
+      auto it = states.find(h);
+      return it == states.end() ? true : it->second.latestIsAsk;
     };
     for (const auto& o : bidsIn) if (isPool(o) || keepsBids(o.addressHash)) bids.push_back(o);
     for (const auto& o : asksIn) if (isPool(o) || keepsAsks(o.addressHash)) asks.push_back(o);
@@ -236,7 +238,7 @@ AuctionResult runAuction(const std::vector<AuctionOrder>& bidsIn,
       takerCum += f.heat;
       uint64_t fee = feeCum(takerCum) - feeCum(prev);
       f.cdFeeHeat = static_cast<uint64_t>(
-          ((uint128_t)fee * parameters::HEARTH_CD_SHARE_BPS) / 100);
+          ((uint128_t)fee * parameters::HEARTH_CD_SHARE_PCT) / 100);
       uint64_t reb = fee - f.cdFeeHeat;
       f.rebateHeat = reb;   // taker pays the rebate into the pool
       rebPool += reb;

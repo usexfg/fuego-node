@@ -201,7 +201,7 @@ void testFeeConservation() {
   TEST(expectedFee - totalFee < 4);
   // 70/30 split of the collected fee.
   uint64_t expectCd = static_cast<uint64_t>(
-      ((uint128_t)expectedFee * parameters::HEARTH_CD_SHARE_BPS) / 100);
+      ((uint128_t)expectedFee * parameters::HEARTH_CD_SHARE_PCT) / 100);
   TEST(cdSum <= expectCd);
 }
 

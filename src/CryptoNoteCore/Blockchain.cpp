@@ -4774,7 +4774,7 @@ void CryptoNote::Blockchain::processOrderbookForBlock(Block& block, const std::v
         uint64_t feeHeat = grossHeat - heatPaid;
         if (grossHeat == 0 || m_ammPool.reserveHeat < grossHeat) continue;
         uint64_t cdFeeHeat = static_cast<uint64_t>(
-            ((uint128_t)feeHeat * parameters::HEARTH_CD_SHARE_BPS) / 100);
+            ((uint128_t)feeHeat * parameters::HEARTH_CD_SHARE_PCT) / 100);
         // Saturating add: an overflow must not abort the fill pass mid-way
         // (partial application would fork consensus).
         m_ammPool.cdHearthFeeAccumulator =
@@ -4819,7 +4819,7 @@ void CryptoNote::Blockchain::processOrderbookForBlock(Block& block, const std::v
 
         uint64_t feeXfg = grossXfg - fillXfg;
         uint64_t cdFeeXfg = static_cast<uint64_t>(
-            ((uint128_t)feeXfg * parameters::HEARTH_CD_SHARE_BPS) / 100);
+            ((uint128_t)feeXfg * parameters::HEARTH_CD_SHARE_PCT) / 100);
         // Convert the XFG CD share to HEAT at the PRE-fill spot rate.
         uint64_t feeHeatEq = static_cast<uint64_t>(
             ((uint128_t)cdFeeXfg * price) / parameters::COIN);
@@ -6688,7 +6688,7 @@ bool CryptoNote::Blockchain::pushTransaction(BlockEntry& block, const Crypto::Ha
             // Fee split 70/30: 70% → CD yield (debited from reserves), 30% stays
             // with LPs (maker role — the pool is the counterparty).
             uint64_t cdFeeHeat = static_cast<uint64_t>(
-                ((uint128_t)feeHeat * parameters::HEARTH_CD_SHARE_BPS) / 100);
+                ((uint128_t)feeHeat * parameters::HEARTH_CD_SHARE_PCT) / 100);
             m_ammPool.reserveHeat -= (heatPaid + cdFeeHeat);
             if (m_ammPool.cdHearthFeeAccumulator > UINT64_MAX - cdFeeHeat) {
               logger(ERROR, BRIGHT_RED) << "CD fee accumulator overflow";
@@ -6717,7 +6717,7 @@ bool CryptoNote::Blockchain::pushTransaction(BlockEntry& block, const Crypto::Ha
             // 70/30: 70% of the XFG fee leaves reserves for CD yield; 30% stays
             // with LPs (maker role).
             uint64_t cdFeeXfg = static_cast<uint64_t>(
-                ((uint128_t)feeXfg * parameters::HEARTH_CD_SHARE_BPS) / 100);
+                ((uint128_t)feeXfg * parameters::HEARTH_CD_SHARE_PCT) / 100);
             m_ammPool.reserveXfg -= (xfgPaid + cdFeeXfg);
             // Convert the XFG CD share to HEAT at the post-swap rate.
             uint64_t feeHeatEq = 0;
@@ -7254,7 +7254,7 @@ void CryptoNote::Blockchain::popTransaction(const Transaction& transaction, cons
           uint64_t feeHeat = (grossHeat > heatPaid) ? grossHeat - heatPaid : 0;
           if (m_ammPool.reserveXfg >= xfgDeposited) m_ammPool.reserveXfg -= xfgDeposited;
           uint64_t cdFeeHeat = static_cast<uint64_t>(
-              ((uint128_t)feeHeat * parameters::HEARTH_CD_SHARE_BPS) / 100);
+              ((uint128_t)feeHeat * parameters::HEARTH_CD_SHARE_PCT) / 100);
           m_ammPool.reserveHeat += (heatPaid + cdFeeHeat);
           if (m_ammPool.cdHearthFeeAccumulator >= cdFeeHeat)
             m_ammPool.cdHearthFeeAccumulator -= cdFeeHeat;
@@ -7276,7 +7276,7 @@ void CryptoNote::Blockchain::popTransaction(const Transaction& transaction, cons
           }
           if (m_ammPool.reserveHeat >= heatDeposited) m_ammPool.reserveHeat -= heatDeposited;
           uint64_t cdFeeXfg = static_cast<uint64_t>(
-              ((uint128_t)feeXfg * parameters::HEARTH_CD_SHARE_BPS) / 100);
+              ((uint128_t)feeXfg * parameters::HEARTH_CD_SHARE_PCT) / 100);
           m_ammPool.reserveXfg += (xfgPaid + cdFeeXfg);
           // Reversal uses the recorded HEAT equivalent (exact). Fallback to a
           // deterministic recompute when the record is absent (disk-loaded

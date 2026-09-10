@@ -93,17 +93,17 @@ struct SwapOrder {
   enum class Side : uint8_t { BID = 0, ASK = 1 };
 
   std::string  orderId;       // daemon-generated: cn_fast_hash(canonical fields)
-  Side         side;
-  uint8_t      pair;          // 0=XMR..5=BASE
-  uint64_t     price;         // XFG per 1 CTR, scaled by 1e7
-  uint64_t     amount;        // total order size in XFG atomic units
-  uint64_t     filled;        // amount filled so far
-  Crypto::PublicKey makerPubKey;
-  Crypto::Signature signature;  // signs canonical(orderId+side+pair+price+amount+nonce)
-  uint64_t     nonce;         // maker monotonic counter (replay protection)
-  uint64_t     timestamp;
-  uint32_t     ttlBlocks;
-  uint32_t     postedHeight;
+  Side         side       = Side::BID;
+  uint8_t      pair       = 0;  // 0=XMR..5=BASE
+  uint64_t     price      = 0;  // XFG per 1 CTR, scaled by 1e7
+  uint64_t     amount     = 0;  // total order size in XFG atomic units
+  uint64_t     filled     = 0;  // amount filled so far
+  Crypto::PublicKey makerPubKey{};
+  Crypto::Signature signature{};  // signs canonical(orderId+side+pair+price+amount+nonce)
+  uint64_t     nonce      = 0;  // maker monotonic counter (replay protection)
+  uint64_t     timestamp  = 0;
+  uint32_t     ttlBlocks  = 0;
+  uint32_t     postedHeight = 0;
 };
 
 struct PriceLevel {

@@ -71,14 +71,21 @@ void OrderbookIndex::removeOrder(const Crypto::Hash& orderId) {
           if (sc->second <= 1) m_perSenderCount.erase(sc);
           else sc->second--;
         }
+        // Drain the level and drop it once empty: operator[] would insert a
+        // zero entry for a missing price, and a drained level left behind grows
+        // these maps without bound over a node's lifetime.
         if (depthMapBi) {
-          auto& d = (*depthMapBi)[price];
-          if (d >= it->amount) d -= it->amount;
-          else d = 0;
+          auto d = depthMapBi->find(price);
+          if (d != depthMapBi->end()) {
+            d->second = (d->second >= it->amount) ? d->second - it->amount : 0;
+            if (d->second == 0) depthMapBi->erase(d);
+          }
         } else if (depthMapAs) {
-          auto& d = (*depthMapAs)[price];
-          if (d >= it->amount) d -= it->amount;
-          else d = 0;
+          auto d = depthMapAs->find(price);
+          if (d != depthMapAs->end()) {
+            d->second = (d->second >= it->amount) ? d->second - it->amount : 0;
+            if (d->second == 0) depthMapAs->erase(d);
+          }
         }
         curve->erase(it);
         break;
