@@ -898,6 +898,7 @@ if (!m_upgradeDetectorV2.init() || !m_upgradeDetectorV3.init() || !m_upgradeDete
     m_vaultSpentByTx.clear();
     m_blockOrderFills.clear();
     m_blockSwapCdFeeHeatEq.clear();
+    m_blockLpRemoveAmounts.clear();
     m_epochSnapshots.clear();
     m_orderbookSnapshots.clear();
     m_blockTwapContributions.clear();
@@ -1689,7 +1690,7 @@ bool CryptoNote::Blockchain::get_last_n_blocks_sizes(std::vector<size_t>& sz, si
   return getBackwardBlocksSize(height, sz, count);
 }
 
-uint64_t CryptoNote::Blockchain::getCurrentCumulativeBlocksizeLimit() {
+uint64_t CryptoNote::Blockchain::getCurrentCumulativeBlocksizeLimit() const {
   return m_current_block_cumul_sz_limit;
 }
 
@@ -2740,7 +2741,7 @@ bool CryptoNote::Blockchain::checkCommitmentSpendInput(const TransactionInputCom
         maxBase = m_currency.calculateCdInterest(
             txin.amount, youngestRingMemberHeight, currentHeight,
             m_commitmentIndex, false, youngestRingMemberTerm,
-            youngestRingMemberRolled, /*includeLoyaltyBonus=*/false);
+            youngestRingMemberRolled);
         uint64_t maxBonus = m_currency.calculateCdBonus(
             txin.amount, youngestRingMemberHeight, currentHeight,
             m_commitmentIndex, youngestRingMemberTerm);
@@ -2773,7 +2774,8 @@ bool CryptoNote::Blockchain::checkCommitmentSpendInput(const TransactionInputCom
       }
       if (maxInterest == 0) {
         maxInterest = m_currency.calculateCdInterest(
-            txin.amount, youngestRingMemberHeight, currentHeight, m_commitmentIndex);
+            txin.amount, youngestRingMemberHeight, currentHeight, m_commitmentIndex,
+            false, 0, false);
       }
     }
     // Fee pool cap. Pre-v11: the whole claim is pool-backed. v11+: only the
@@ -4196,7 +4198,7 @@ bool CryptoNote::Blockchain::pushBlock(const Block &blockData, const std::vector
 
           uint64_t maxInterest = m_currency.calculateCdInterest(
               legacyPrincipal > 0 ? legacyPrincipal : (legacyClaimedInterest > in_amount ? in_amount : legacyClaimedInterest),
-              creationHeight, block.height, m_commitmentIndex, true);
+              creationHeight, block.height, m_commitmentIndex, true, 0, false);
           if (maxInterest > m_legacyBondYieldPool) {
             maxInterest = m_legacyBondYieldPool;
           }
@@ -4413,7 +4415,7 @@ CryptoNote::Blockchain::OrderbookEstimate CryptoNote::Blockchain::getOrderbookEs
   MarketOrderExecutor executor(MAX_MARKET_PRICE_DEVIATION_PCT);
 
   // Build temporary OrderbookIndex from mempool for the estimator
-  OrderbookIndex snapshot(MAX_ORDERS_PER_BLOCK, 100);
+  OrderbookIndex snapshot(m_current_block_cumul_sz_limit);
   for (const auto& level : g_orderbookMempool.getBidCurve(50)) {
     OrderEntry e;
     e.price = level.price; e.amount = level.depth;
@@ -4592,6 +4594,22 @@ void CryptoNote::Blockchain::processOrderbookForBlock(Block& block, const std::v
         auctionBids.push_back(o);
       }
     }
+    // Inject pool-generated orders as real makers in the auction.  Pool orders
+    // have 0xF0 prefix IDs, zeroed addressHash, and createdHeight=0 so they
+    // lose tie-breaks against user orders at the same price (user first).
+    for (const auto& poolOrd : g_orderbookMempool.getAllPoolOrders()) {
+      CryptoNote::AuctionOrder o;
+      o.orderId = poolOrd.orderId;
+      o.price = poolOrd.targetPrice;
+      o.volumeXfg = poolOrd.amount;
+      o.createdHeight = 0;
+      o.addressHash = Crypto::Hash{};
+      if (poolOrd.side == 0) { // BUY_XFG → bid
+        auctionBids.push_back(o);
+      } else {                 // SELL_XFG → ask
+        auctionAsks.push_back(o);
+      }
+    }
     CryptoNote::AuctionResult auction =
         runAuction(auctionBids, auctionAsks, g_orderbookLastClearingPrice);
     if (auction.crossed && auction.matchedVolume > 0) {
@@ -4599,6 +4617,50 @@ void CryptoNote::Blockchain::processOrderbookForBlock(Block& block, const std::v
       // P_clear = the discovered price (last-price semantics, bootstrap-seeded).
       g_orderbookLastClearingPrice = auction.clearingPrice;
       for (const auto& fill : auction.fills) {
+        // Pool fills: orders with 0xF0 prefix are pool-generated, not backed
+        // by m_limitDeposits.  The pool provides one asset, receives the other.
+        if (fill.orderId.data[0] == 0xF0) {
+          uint64_t xfgMoved = 0;
+          uint64_t heatDebit = 0;
+          if (fill.side == 1) {
+            // Seller (pool is maker): XFG leaves pool, HEAT enters pool
+            xfgMoved = fill.fillXfg;
+            heatDebit = fill.heat;
+            if (m_ammPool.reserveXfg < xfgMoved) continue;
+            if (m_ammPool.pendingXfg < xfgMoved) continue;
+            m_ammPool.pendingXfg -= xfgMoved;
+            m_ammPool.reserveXfg -= xfgMoved;
+            m_ammPool.pendingHeat += heatDebit;
+            m_ammPool.reserveHeat += heatDebit;
+          } else {
+            // Buyer (pool is maker): HEAT leaves pool, XFG enters pool
+            xfgMoved = fill.fillXfg;
+            heatDebit = fill.heat;
+            if (m_ammPool.reserveHeat < heatDebit) continue;
+            if (m_ammPool.pendingHeat < heatDebit) continue;
+            m_ammPool.pendingHeat -= heatDebit;
+            m_ammPool.reserveHeat -= heatDebit;
+            m_ammPool.pendingXfg += xfgMoved;
+            m_ammPool.reserveXfg += xfgMoved;
+          }
+          if (fill.cdFeeHeat > 0) {
+            m_ammPool.cdHearthFeeAccumulator =
+              (m_ammPool.cdHearthFeeAccumulator > UINT64_MAX - fill.cdFeeHeat)
+                ? UINT64_MAX : m_ammPool.cdHearthFeeAccumulator + fill.cdFeeHeat;
+          }
+          OrderFillRecord rec;
+          rec.orderId = fill.orderId;
+          rec.side = fill.side;
+          rec.xfg = xfgMoved;
+          rec.heat = heatDebit;
+          rec.feeHeat = fill.cdFeeHeat;
+          rec.isAuction = true;
+          rec.isTaker = false;
+          rec.priceHeat = fill.heat;
+          fillsThisBlock.push_back(rec);
+          block.orderbookNumMatches++;
+          continue;
+        }
         auto it = m_limitDeposits.find(fill.orderId);
         if (it == m_limitDeposits.end()) continue;
         LimitDepositInfo& d = it->second;
@@ -4664,7 +4726,8 @@ void CryptoNote::Blockchain::processOrderbookForBlock(Block& block, const std::v
   // orders. Pre-v11: in-band matching was never wired to a submission path;
   // no historical blocks contain in-band fills, so nothing to preserve.
   if (block.majorVersion >= BLOCK_MAJOR_VERSION_11 && !m_ammPool.isEmpty() &&
-      !g_orderbookIsInBootstrap && m_ammPool.reserveXfg > 0) {
+      !g_orderbookIsInBootstrap && m_ammPool.reserveXfg > 0 &&
+      m_ammPool.reserveXfg >= parameters::HEARTH_MIN_XFG_DEPTH) {
     // Fills execute at the LIVE pool spot price — never the (frozen) bootstrap
     // clearing price — so limit orders track the AMM and cannot arbitrage it.
     const uint64_t price = ammGetSpotPrice(m_ammPool.reserveXfg, m_ammPool.reserveHeat);
@@ -6134,6 +6197,11 @@ void CryptoNote::Blockchain::popBlock(const Crypto::Hash& blockHash) {
     m_blockSwapCdFeeHeatEq.pop_back();
   }
 
+  // Reverse per-block LP-removal reserve deltas (recorded at settle).
+  if (!m_blockLpRemoveAmounts.empty() && m_blockLpRemoveAmounts.back().first == poppedHeight) {
+    m_blockLpRemoveAmounts.pop_back();
+  }
+
   if (!m_epochSnapshots.empty() && m_epochSnapshots.back().first == poppedHeight) {
     const auto& snap = m_epochSnapshots.back().second;
     m_heatSupply = snap.heatSupply;
@@ -6725,9 +6793,17 @@ bool CryptoNote::Blockchain::pushTransaction(BlockEntry& block, const Crypto::Ha
           uint64_t amountXfg = 0, amountHeat = 0;
           ammGetWithdrawalAmounts(rem.lpSharesBurned, m_ammPool.totalLpShares,
             m_ammPool.reserveXfg, m_ammPool.reserveHeat, amountXfg, amountHeat);
-          if (m_ammPool.reserveXfg >= amountXfg) m_ammPool.reserveXfg -= amountXfg;
-          if (m_ammPool.reserveHeat >= amountHeat) m_ammPool.reserveHeat -= amountHeat;
+          const uint64_t appliedXfg  = (m_ammPool.reserveXfg  >= amountXfg)  ? amountXfg  : 0;
+          const uint64_t appliedHeat = (m_ammPool.reserveHeat >= amountHeat) ? amountHeat : 0;
+          m_ammPool.reserveXfg  -= appliedXfg;
+          m_ammPool.reserveHeat -= appliedHeat;
           if (m_ammPool.totalLpShares >= rem.lpSharesBurned) m_ammPool.totalLpShares -= rem.lpSharesBurned;
+          // Record actual deltas for exact popBlock reversal.
+          if (m_blockLpRemoveAmounts.empty() ||
+              m_blockLpRemoveAmounts.back().first != block.height) {
+            m_blockLpRemoveAmounts.push_back({block.height, {}});
+          }
+          m_blockLpRemoveAmounts.back().second.push_back({appliedXfg, appliedHeat});
           processedLegacyLpRemove = true;
         }
       }
@@ -6775,6 +6851,12 @@ bool CryptoNote::Blockchain::pushTransaction(BlockEntry& block, const Crypto::Ha
         m_ammPool.reserveXfg -= amountXfg;
         m_ammPool.reserveHeat -= amountHeat;
         m_ammPool.totalLpShares -= authLpRemoveShares;
+        // Record actual deltas for exact popBlock reversal.
+        if (m_blockLpRemoveAmounts.empty() ||
+            m_blockLpRemoveAmounts.back().first != block.height) {
+          m_blockLpRemoveAmounts.push_back({block.height, {}});
+        }
+        m_blockLpRemoveAmounts.back().second.push_back({amountXfg, amountHeat});
         logger(INFO) << "LP remove settled (auth): -" << m_currency.formatAmount(amountXfg)
                      << " XFG, -" << m_currency.formatAmount(amountHeat)
                      << " HEAT, burned " << authLpRemoveShares << " LP shares";
@@ -7232,10 +7314,22 @@ void CryptoNote::Blockchain::popTransaction(const Transaction& transaction, cons
         }
       } else if (field.type() == typeid(TransactionExtraAmmRemoveLiquidity)) {
         const auto& rem = boost::get<TransactionExtraAmmRemoveLiquidity>(field);
-        // Deterministic recompute from post-burn state (guarded against zero totals).
+        // Restore the deltas recorded at settle. Recomputing from post-burn
+        // state is not the inverse of the forward path.
         uint64_t amountXfg = 0, amountHeat = 0;
-        ammGetWithdrawalAmounts(rem.lpSharesBurned, m_ammPool.totalLpShares,
-          m_ammPool.reserveXfg, m_ammPool.reserveHeat, amountXfg, amountHeat);
+        if (!m_blockLpRemoveAmounts.empty() &&
+            m_blockLpRemoveAmounts.back().first == height &&
+            !m_blockLpRemoveAmounts.back().second.empty()) {
+          amountXfg  = m_blockLpRemoveAmounts.back().second.back().first;
+          amountHeat = m_blockLpRemoveAmounts.back().second.back().second;
+          m_blockLpRemoveAmounts.back().second.pop_back();
+        } else {
+          // No record: clamp the burn to the live supply so a missing record
+          // can never inflate the reserves.
+          ammGetWithdrawalAmounts(std::min(rem.lpSharesBurned, m_ammPool.totalLpShares),
+            m_ammPool.totalLpShares, m_ammPool.reserveXfg, m_ammPool.reserveHeat,
+            amountXfg, amountHeat);
+        }
         m_ammPool.totalLpShares += rem.lpSharesBurned;
         m_ammPool.reserveHeat += amountHeat;
         m_ammPool.reserveXfg += amountXfg;
@@ -7265,8 +7359,17 @@ void CryptoNote::Blockchain::popTransaction(const Transaction& transaction, cons
           if (f2.type() == typeid(TransactionExtraAmmRemoveLiquidity)) { hasLegacy = true; break; }
         if (!hasLegacy && a.lpSharesBurned > 0 && majorVersion >= BLOCK_MAJOR_VERSION_11) {
           uint64_t amountXfg = 0, amountHeat = 0;
-          ammGetWithdrawalAmounts(a.lpSharesBurned, m_ammPool.totalLpShares,
-            m_ammPool.reserveXfg, m_ammPool.reserveHeat, amountXfg, amountHeat);
+          if (!m_blockLpRemoveAmounts.empty() &&
+              m_blockLpRemoveAmounts.back().first == height &&
+              !m_blockLpRemoveAmounts.back().second.empty()) {
+            amountXfg  = m_blockLpRemoveAmounts.back().second.back().first;
+            amountHeat = m_blockLpRemoveAmounts.back().second.back().second;
+            m_blockLpRemoveAmounts.back().second.pop_back();
+          } else {
+            ammGetWithdrawalAmounts(std::min(a.lpSharesBurned, m_ammPool.totalLpShares),
+              m_ammPool.totalLpShares, m_ammPool.reserveXfg, m_ammPool.reserveHeat,
+              amountXfg, amountHeat);
+          }
           m_ammPool.totalLpShares += a.lpSharesBurned;
           m_ammPool.reserveHeat += amountHeat;
           m_ammPool.reserveXfg += amountXfg;

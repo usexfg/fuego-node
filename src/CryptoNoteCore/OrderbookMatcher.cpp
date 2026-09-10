@@ -13,6 +13,7 @@
 
 #include "OrderbookMatcher.h"
 
+#include "../Common/Int128.h"
 #include <algorithm>
 #include <set>
 #include <cstring>
@@ -102,8 +103,11 @@ MatchResult OrderbookMatcher::match(OrderbookIndex& index, uint64_t prevPclear,
 
   std::vector<CandidateMatch> candidates;
   size_t ordersProcessed = 0;
+  size_t numSettled = 0;    // tracks fills that survive P_clear filter
   uint64_t totalMatchedVolume = 0;
-  uint64_t volumeTimesPrice = 0;
+  // Prices are COIN-scaled (HEAT atomics per XFG atomic x COIN), not Q64.64:
+  // accumulate the full 128-bit product and divide once at the end.
+  uint128_t volumeTimesPrice = 0;
 
   // Build mutable copies of curves
   auto bidCurve = index.getBidCurve();
@@ -127,7 +131,7 @@ MatchResult OrderbookMatcher::match(OrderbookIndex& index, uint64_t prevPclear,
     size_t bi = 0, ai = 0;
 
     while (bi < bidEntries.size() && ai < askEntries.size() &&
-           ordersProcessed < static_cast<size_t>(m_maxOrdersPerBlock)) {
+           numSettled < static_cast<size_t>(m_maxOrdersPerBlock)) {
       OrderEntry& bid = bidEntries[bi];
       OrderEntry& ask = askEntries[ai];
 
@@ -145,7 +149,7 @@ MatchResult OrderbookMatcher::match(OrderbookIndex& index, uint64_t prevPclear,
       cm.askEntry = ask;
       candidates.push_back(cm);
 
-      volumeTimesPrice += matchAmount * askPrice;
+      volumeTimesPrice += static_cast<uint128_t>(matchAmount) * askPrice;
       totalMatchedVolume += matchAmount;
       ordersProcessed++;
 
@@ -159,14 +163,14 @@ MatchResult OrderbookMatcher::match(OrderbookIndex& index, uint64_t prevPclear,
     if (bi >= bidEntries.size()) bidIt++;
     if (ai >= askEntries.size()) askIt++;
 
-    if (ordersProcessed >= static_cast<size_t>(m_maxOrdersPerBlock))
+    if (numSettled >= static_cast<size_t>(m_maxOrdersPerBlock))
       break;
   }
 
   if (totalMatchedVolume == 0)
     return result;
 
-  result.P_clear = volumeTimesPrice / totalMatchedVolume;
+  result.P_clear = static_cast<uint64_t>(volumeTimesPrice / totalMatchedVolume);
 
   // Filter: only keep fills where P_clear is favorable
   for (auto& cm : candidates) {
@@ -202,6 +206,7 @@ MatchResult OrderbookMatcher::match(OrderbookIndex& index, uint64_t prevPclear,
     fill.price = cm.askPrice;
     result.fills.push_back(fill);
     result.numMatches++;
+    numSettled++;
 
     // Remove matched orders from index
     index.removeOrder(cm.bidOrderId);
@@ -233,13 +238,13 @@ MatchResult OrderbookMatcher::match(OrderbookIndex& index, uint64_t prevPclear,
   if (!result.fills.empty()) {
     // Recompute P_clear from actual fills (excluding unfavorable)
     uint64_t actualVolume = 0;
-    uint64_t actualVxP = 0;
+    uint128_t actualVxP = 0;
     for (const auto& fill : result.fills) {
       actualVolume += fill.amount;
-      actualVxP += fill.amount * fill.price;
+      actualVxP += static_cast<uint128_t>(fill.amount) * fill.price;
     }
     if (actualVolume > 0)
-      result.P_clear = actualVxP / actualVolume;
+      result.P_clear = static_cast<uint64_t>(actualVxP / actualVolume);
 
     result.numDistinctParties = countDistinctParties(result.fills, index);
     if (result.numDistinctParties >= m_minDistinctParties) {

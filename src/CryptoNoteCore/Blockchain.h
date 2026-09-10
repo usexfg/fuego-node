@@ -232,7 +232,7 @@ namespace CryptoNote {
     bool getTransactionOutputGlobalIndexes(const Crypto::Hash& tx_id, std::vector<uint32_t>& indexs);
     bool get_out_by_msig_gindex(uint64_t amount, uint64_t gindex, MultisignatureOutput& out);
     bool checkTransactionInputs(const Transaction& tx, uint32_t& pmax_used_block_height, Crypto::Hash& max_used_block_id, BlockInfo* tail = 0);
-    uint64_t getCurrentCumulativeBlocksizeLimit();
+    uint64_t getCurrentCumulativeBlocksizeLimit() const;
     uint64_t blockDifficulty(size_t i);
     bool getBlockContainingTransaction(const Crypto::Hash& txId, Crypto::Hash& blockId, uint32_t& blockHeight);
     bool getAlreadyGeneratedCoins(const Crypto::Hash& hash, uint64_t& generatedCoins);
@@ -547,6 +547,11 @@ namespace CryptoNote {
     // Per-block dir-1 swap CD-fee HEAT equivalents (recorded at settle for
     // exact popBlock reversal — the pop-time pool rate differs from push-time).
     std::deque<std::pair<uint32_t, std::vector<uint64_t>>> m_blockSwapCdFeeHeatEq;
+    // Per-block LP-removal reserve deltas (recorded at settle for exact
+    // popBlock reversal). Recomputing from post-burn state is not the inverse
+    // of the forward path: once lpSharesBurned exceeds the post-burn supply
+    // the ratio exceeds 1 and the reserves inflate instead of being restored.
+    std::deque<std::pair<uint32_t, std::vector<std::pair<uint64_t, uint64_t>>>> m_blockLpRemoveAmounts;
 
   public:
     const std::map<Crypto::Hash, LimitDepositInfo, HashLess>& getLimitDeposits() const { return m_limitDeposits; }

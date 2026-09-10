@@ -44,6 +44,9 @@ struct AuctionResult {
 
 // Bids (BUY_XFG) sorted price-desc; asks (SELL_XFG) sorted price-asc.
 // prevPclear: last block's clearing price, used only for tie-breaks.
+// Pool-generated orders (0xF0 id prefix) all carry the same zeroed addressHash,
+// so they are exempt from self-trade exclusion: without that, the two-sided
+// market maker reads as one party and a whole side is dropped.
 AuctionResult runAuction(const std::vector<AuctionOrder>& bids,
                          const std::vector<AuctionOrder>& asks,
                          uint64_t prevPclear);

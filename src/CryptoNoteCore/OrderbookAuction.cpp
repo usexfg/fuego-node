@@ -13,6 +13,9 @@
 
 namespace CryptoNote {
 
+// Pool-generated order ids are stamped with this prefix by generatePoolOrders().
+const uint8_t POOL_ORDER_ID_PREFIX = 0xF0;
+
 namespace {
 
 bool lessByHash(const Crypto::Hash& a, const Crypto::Hash& b) {
@@ -69,11 +72,18 @@ AuctionResult runAuction(const std::vector<AuctionOrder>& bidsIn,
       states.push_back({h, {}});
       return states.back().second;
     };
+    // Pool orders are the protocol's own two-sided quotes, not a user trading
+    // against themselves: they share one zeroed addressHash by construction.
+    auto isPool = [](const AuctionOrder& o) {
+      return o.orderId.data[0] == POOL_ORDER_ID_PREFIX;
+    };
     for (const auto& o : bidsIn) {
+      if (isPool(o)) continue;
       auto& st = findState(o.addressHash);
       if (!st.has || laterOrder(o, st.latest)) { st.latest = o; st.latestIsAsk = false; st.has = true; }
     }
     for (const auto& o : asksIn) {
+      if (isPool(o)) continue;
       auto& st = findState(o.addressHash);
       if (!st.has || laterOrder(o, st.latest)) { st.latest = o; st.latestIsAsk = true; st.has = true; }
     }
@@ -87,8 +97,8 @@ AuctionResult runAuction(const std::vector<AuctionOrder>& bidsIn,
         if (sameHash(kv.first, h)) return kv.second.latestIsAsk;
       return true;
     };
-    for (const auto& o : bidsIn) if (keepsBids(o.addressHash)) bids.push_back(o);
-    for (const auto& o : asksIn) if (keepsAsks(o.addressHash)) asks.push_back(o);
+    for (const auto& o : bidsIn) if (isPool(o) || keepsBids(o.addressHash)) bids.push_back(o);
+    for (const auto& o : asksIn) if (isPool(o) || keepsAsks(o.addressHash)) asks.push_back(o);
     if (bids.empty() || asks.empty()) return result;
   }
 

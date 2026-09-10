@@ -565,6 +565,14 @@ target_link_libraries(test_orderbook_phase5 PRIVATE
 target_include_directories(test_orderbook_phase5 PRIVATE
     ${CMAKE_SOURCE_DIR}/src)
 
+# Hearth AMM reserve math + LP share accounting (apply/undo round-trip)
+add_executable(test_hearth_amm
+    ../tests/CoreTests/HearthAmmTests.cpp)
+target_link_libraries(test_hearth_amm PRIVATE
+    CryptoNoteCore Common Crypto OpenSSL::SSL OpenSSL::Crypto)
+target_include_directories(test_hearth_amm PRIVATE
+    ${CMAKE_SOURCE_DIR}/src)
+
 # P2P orderbook data structures + matching tests (Phase 7)
 add_executable(test_p2p_orderbook
     ../tests/CoreTests/SwapOrderbookTests.cpp)
