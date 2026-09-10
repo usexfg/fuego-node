@@ -140,11 +140,97 @@ contract PointTimelockTest is Test {
         assertNotEq(id1, bytes32(0));
     }
 
+
+    // ── AUDIT 6.2 regression: .transfer -> .call ──
+
+    /// A contract wallet whose receive() costs more than the 2300-gas stipend
+    /// must still be able to receive a claim. Under the old `.transfer` payout
+    /// this reverted, which bricked claim AND refund permanently: the ETH could
+    /// never leave the contract by any path.
+    function test_claim_pays_contract_wallet_recipient() public {
+        GreedyWallet wallet = new GreedyWallet();
+        vm.deal(alice, 1 ether);
+        vm.prank(alice);
+        bytes32 id = ptl.lock{value: 1 ether}(
+            payable(address(wallet)), EXPECTED_POINT_ADDR, block.number + 100);
+
+        ptl.claim(id, SECRET_BE);
+
+        assertEq(address(wallet).balance, 1 ether);
+        assertGt(wallet.touched(), 0);          // receive() really did burn >2300 gas
+        (,,,,, bool claimed,,) = ptl.contracts(id);
+        assertTrue(claimed);
+    }
+
+    /// Same for the refund path — a contract-wallet *sender* must get its ETH back.
+    function test_refund_pays_contract_wallet_sender() public {
+        GreedyWallet wallet = new GreedyWallet();
+        vm.deal(address(wallet), 1 ether);
+        bytes32 id = wallet.doLock(ptl, EXPECTED_POINT_ADDR, block.number + 10);
+
+        vm.roll(block.number + 11);
+        ptl.refund(id);
+
+        assertEq(address(wallet).balance, 1 ether);
+        (,,,,,, bool refunded,) = ptl.contracts(id);
+        assertTrue(refunded);
+    }
+
+    /// Paying with `.call` forwards all gas, so the guard — not the stipend —
+    /// is what stops reentrancy now. A recipient that calls back into claim()
+    /// must not be able to drain a second payout.
+    function test_reentrant_recipient_cannot_double_claim() public {
+        ReentrantWallet attacker = new ReentrantWallet(ptl);
+        vm.deal(alice, 3 ether);
+        vm.prank(alice);
+        bytes32 id = ptl.lock{value: 1 ether}(
+            payable(address(attacker)), EXPECTED_POINT_ADDR, block.number + 100);
+        attacker.arm(id, SECRET_BE);
+
+        ptl.claim(id, SECRET_BE);
+
+        // Exactly one payout, and the reentrant inner call was rejected.
+        assertEq(address(attacker).balance, 1 ether);
+        assertEq(address(ptl).balance, 0);
+        assertTrue(attacker.reentryAttempted());
+        assertFalse(attacker.reentrySucceeded());
+    }
+
     // ── constants ──
     function _GX() internal pure returns (uint256) {
         return 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798;
     }
     function _N() internal pure returns (uint256) {
         return 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141;
+    }
+}
+
+/// Recipient whose receive() writes storage (~20k gas) — far beyond the 2300-gas
+/// stipend that `.transfer` forwards.
+contract GreedyWallet {
+    uint256 public touched;
+    receive() external payable { touched += 1; }
+    function doLock(PointTimelock ptl, address point, uint256 timeoutBlock)
+        external returns (bytes32)
+    {
+        return ptl.lock{value: 1 ether}(payable(address(this)), point, timeoutBlock);
+    }
+}
+
+/// Recipient that attempts to reenter claim() from receive().
+contract ReentrantWallet {
+    PointTimelock private immutable ptl;
+    bytes32 private id;
+    bytes32 private secret;
+    bool public reentryAttempted;
+    bool public reentrySucceeded;
+
+    constructor(PointTimelock _ptl) { ptl = _ptl; }
+    function arm(bytes32 _id, bytes32 _secret) external { id = _id; secret = _secret; }
+
+    receive() external payable {
+        if (id == bytes32(0) || reentryAttempted) return;
+        reentryAttempted = true;
+        try ptl.claim(id, secret) { reentrySucceeded = true; } catch { }
     }
 }

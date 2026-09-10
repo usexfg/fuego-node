@@ -326,6 +326,12 @@ target_include_directories(SwapDaemonLib PUBLIC
 target_link_libraries(SwapDaemonLib PUBLIC Common Crypto Serialization CryptoNoteCore OpenSSL::SSL OpenSSL::Crypto secp256k1)
 target_include_directories(SwapDaemonLib SYSTEM PUBLIC ${JSONCPP_INCLUDE_DIRS})
 
+# Swap security audit regressions (AUDIT 1.2/3.2 adaptor binding, 6.1 timeout floor)
+add_executable(test_swap_audit_regressions
+    SwapDaemon/tests/test_swap_audit_regressions.cpp)
+target_link_libraries(test_swap_audit_regressions PRIVATE
+    SwapDaemonLib Common Crypto CryptoNoteCore Serialization OpenSSL::SSL OpenSSL::Crypto)
+
 # SwapDaemon unit test: adaptor_aggregate ↔ extract_secret roundtrip
 add_executable(test_adaptor_roundtrip
     SwapDaemon/tests/test_adaptor_roundtrip.cpp)

@@ -22,6 +22,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <vector>
 
 using namespace CryptoNote;
@@ -853,8 +854,52 @@ void testCdInterestCompounding() {
   TEST(big >= small * 10 - 10 && big <= small * 10 + 10);
 }
 
+// AUDIT 2.1: legacy XFG term deposits earn no on-chain interest — all yield is
+// via HEAT CDs. calculateInterest() returning 0 must NOT strand a matured
+// legacy deposit: getTransactionInputAmount values the input at principal, so a
+// principal-minus-fee withdrawal still passes money conservation. The old body
+// computed a rate, a 128-bit product and an early-deposit multiplier, then
+// returned a variable that was initialised to 0 and never assigned — so it
+// always returned 0 too. This pins that equivalence.
+void testLegacyDepositWithdrawsForPrincipal() {
+  Logging::LoggerGroup nullLog;
+  Currency currency = CurrencyBuilder(nullLog).currency();
+
+  const uint64_t principal = 800000;  // 0.08 XFG in atomic units
+
+  // Interest is zero at every term and height, including the early-deposit
+  // window that used to carry a multiplier.
+  TEST(currency.calculateInterest(principal, 0, 0) == 0);
+  TEST(currency.calculateInterest(principal, parameters::DEPOSIT_MIN_TERM, 1) == 0);
+  TEST(currency.calculateInterest(principal, parameters::DEPOSIT_MAX_TERM, 1000000) == 0);
+  TEST(currency.calculateInterest(std::numeric_limits<uint64_t>::max(),
+                                  parameters::DEPOSIT_MAX_TERM, 1) == 0);
+
+  // A term deposit is valued at exactly its principal, so it remains spendable.
+  MultisignatureInput term{};
+  term.amount = principal;
+  term.signatureCount = 1;
+  term.outputIndex = 0;
+  term.term = parameters::DEPOSIT_MAX_TERM;
+  TransactionInput termIn = term;
+  TEST(currency.getTransactionInputAmount(termIn, 1000000) == principal);
+
+  // Term 0 (a plain multisig output, never a deposit) is unchanged.
+  MultisignatureInput plain = term;
+  plain.term = 0;
+  TransactionInput plainIn = plain;
+  TEST(currency.getTransactionInputAmount(plainIn, 1000000) == principal);
+
+  // Valuation does not drift with height — a deposit held longer is still
+  // worth its principal, which is what keeps withdrawal conservation stable.
+  TEST(currency.getTransactionInputAmount(termIn, 1) ==
+       currency.getTransactionInputAmount(termIn, 5000000));
+}
+
+
 int main() {
   testCdInterestCompounding();
+  testLegacyDepositWithdrawsForPrincipal();
   testBankingIndexTallyAndReversal();
   testBankingIndexSerializationRoundtrip();
   testFiftyFiftySplitDust();

@@ -165,8 +165,8 @@ they change a fund path, fail toward current behaviour rather than stricter.
 | 7 | `forge test` — existing PointTimelock suite 12/12 PASS after the 6.2 change | claude-code/sonnet-5 | 2026-09-09 | DONE |
 | 8 | `g++ -fsyntax-only` on every touched C++ TU — all parse clean | claude-code/sonnet-5 | 2026-09-09 | DONE |
 | 9 | AUDIT 2.1 — `Currency::calculateInterest` simplified to `return 0` (legacy XFG term-deposit interest is intentionally 0; all yield is HEAT CDs; no legacy-bond path). Verified against `getTransactionInputAmount` (input valued at principal → principal-minus-fee withdrawal passes conservation), `Blockchain::validateInput` (maturity + double-spend enforced independently), banking-index emission accounting (`Blockchain.cpp:1044`), and the vestigial legacy-bond removal branch (`Blockchain.cpp:4177`). Wallet callers use it for display only. | claude-code/sonnet-5 | 2026-09-09 | DONE |
-| 10 | Full SwapDaemon + CryptoNoteCore build + swap/core test suite | — | — | PENDING (run in build env) |
-| 11 | Regression test: contract-wallet recipient can now claim (6.2); timeout-too-soon lock is rejected (6.1); wrong-`t` extract fails (1.2); matured legacy multisig deposit still withdraws for principal (2.1) | — | — | PENDING |
+| 10 | Full SwapDaemon + CryptoNoteCore build + swap/core test suite | claude-code/opus-5 | 2026-09-10 | DONE — Daemon/SimpleWallet/SwapDaemonLib build clean; 10 C++ suites + forge all green |
+| 11 | Regression test: contract-wallet recipient can now claim (6.2); timeout-too-soon lock is rejected (6.1); wrong-`t` extract fails (1.2); matured legacy multisig deposit still withdraws for principal (2.1) | claude-code/opus-5 | 2026-09-10 | DONE — see notes below |
 
 ### Notes
 
@@ -201,3 +201,28 @@ they change a fund path, fail toward current behaviour rather than stricter.
 | Full C++ build (SwapDaemon) | — | — | NOT RUN (no build env) |
 | Swap test suite | — | — | NOT RUN |
 | All tasks complete | claude-code/sonnet-5 | 2026-09-09 | PARTIAL (tasks 9–10 pending) |
+
+---
+
+## Swap Audit Regression Coverage
+
+**Agent**: claude-code/opus-5 · **Date**: 2026-09-10 · **Status**: COMPLETE
+
+Closes rows 10 and 11 of the swap security audit, which it could not run itself
+("PENDING — run in build env"); it had only done `-fsyntax-only`.
+
+| Finding | Test | Location |
+|---------|------|----------|
+| 1.2 / 3.2 | Extraction refuses a scalar that does not open the published adaptor point, and rejects a cross-session presig/sig pair; the 3-arg form's weaker `t != 0` contract is pinned alongside it | `src/SwapDaemon/tests/test_swap_audit_regressions.cpp` |
+| 6.1 | Timeout floor spans ≥1h of blocks on every supported chain and never falls under the 30-block floor; 1-block, confirmations-only and one-short timeouts are rejected, the exact floor is accepted, and `minTimeoutBlock == 0` still fails open | same file |
+| 6.2 | A contract wallet whose `receive()` costs ~20k gas can claim (and refund) — impossible under the old `.transfer` stipend; a reentrant recipient gets exactly one payout | `contracts/point-timelock/test/PointTimelock.t.sol` |
+| 2.1 | `calculateInterest` is 0 at every term/height including the old early-deposit window, and a matured term deposit is still valued at exactly its principal, so withdrawal conservation holds | `tests/CoreTests/TreasuryCoreTests.cpp` |
+
+### Sign-Off
+
+| Gate | Signed By | Date | Result |
+|------|-----------|------|--------|
+| Build compiles (Daemon, SimpleWallet, SwapDaemonLib) | claude-code/opus-5 | 2026-09-10 | PASS |
+| C++ suites (10) — hearth 31, auction 57, orderbook 44, p2p 61, core 177, gates 19, audit-regressions 22, + phase3/phase5/adaptor | claude-code/opus-5 | 2026-09-10 | PASS |
+| Solidity (forge) — PointTimelock 15/15 | claude-code/opus-5 | 2026-09-10 | PASS |
+| All tasks complete | claude-code/opus-5 | 2026-09-10 | PASS |
