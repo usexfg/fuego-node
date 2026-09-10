@@ -838,7 +838,8 @@ bool EthRpcClient::deployHtlc(const std::string& fromAddress,
 bool EthRpcClient::verifyLock(const std::string& contractIdHex,
                                uint64_t expectedWei,
                                const std::string& expectedRecipient,
-                               const std::string& expectedHashLockHex) {
+                               const std::string& expectedHashLockHex,
+                               uint64_t minTimeoutBlock) {
   if (m_htlcRegistry.empty()) return false;
 
   std::string calldata = EthAbi::encodeGetContract(contractIdHex);
@@ -849,6 +850,9 @@ bool EthRpcClient::verifyLock(const std::string& contractIdHex,
   if (!EthAbi::decodeGetContract(result, info)) return false;
   if (info.amount < expectedWei) return false;
   if (info.claimed || info.refunded) return false;
+  // AUDIT 6.1: reject a lock whose on-chain timeout is too soon — otherwise the
+  // counterparty can refund before we can safely claim after revealing t.
+  if (minTimeoutBlock != 0 && info.timeoutBlock < minTimeoutBlock) return false;
 
   if (!expectedRecipient.empty()) {
     std::string er = normalizeAddr20(expectedRecipient);
@@ -1031,7 +1035,8 @@ bool EthRpcClient::lockPoint(const std::string& fromAddress,
 bool EthRpcClient::verifyPointLock(const std::string& contractIdHex,
                                    uint64_t expectedWei,
                                    const std::string& expectedRecipient,
-                                   const std::string& expectedPointAddress) {
+                                   const std::string& expectedPointAddress,
+                                   uint64_t minTimeoutBlock) {
   if (m_ptlcRegistry.empty()) return false;
 
   std::string calldata = EthAbi::encodeGetContract(contractIdHex);
@@ -1042,6 +1047,8 @@ bool EthRpcClient::verifyPointLock(const std::string& contractIdHex,
   if (!EthAbi::decodeGetContractPoint(result, info)) return false;
   if (info.amount < expectedWei) return false;
   if (info.claimed || info.refunded) return false;
+  // AUDIT 6.1: reject a lock whose on-chain timeout is too soon.
+  if (minTimeoutBlock != 0 && info.timeoutBlock < minTimeoutBlock) return false;
 
   if (!expectedRecipient.empty()) {
     std::string er = normalizeAddr20(expectedRecipient);

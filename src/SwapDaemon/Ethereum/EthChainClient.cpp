@@ -5,6 +5,8 @@
 #include "crypto/secp_adaptor.h"
 #include "../Crypto/Secp256k1Signer.h"
 #include "../SwapHashLock.h"
+#include "../SwapTimelock.h"   // AUDIT 6.1: msPerBlock() for the timeout floor
+#include <algorithm>
 #include <stdexcept>
 #include <cctype>
 #include <cstring>
@@ -130,6 +132,27 @@ ChainClientResult EthChainClient::lock(const SwapParams& params) {
 
 ChainClientResult EthChainClient::verifyLock(const SwapParams& params) {
   // ctrLockTxId holds the registry contractId (not a tx hash).
+
+  // AUDIT 6.1: the counterparty's on-chain timeout must leave us enough runway
+  // to observe the lock, wait our required confirmations, and get our claim
+  // mined before they can refund (otherwise: they refund, we've already
+  // revealed t / locked our side, we lose). Require the lock to outlast the
+  // current tip by (confirmations + a ~1h time-based floor in this chain's
+  // blocks). If the tip is unavailable we pass 0 and skip the check —
+  // behaviour is then exactly as before this fix, never stricter-by-accident.
+  uint64_t minTimeoutBlock = 0;
+  {
+    uint64_t ethTip = 0;
+    if (m_rpc->getBlockNumber(ethTip)) {
+      const uint64_t msPer = msPerBlock(params.pair);
+      uint64_t runwayBlocks = (msPer > 0) ? (3600ULL * 1000ULL) / msPer : 300;
+      runwayBlocks = std::max<uint64_t>(runwayBlocks, 30);
+      const uint64_t conf =
+          params.requiredConfirmations ? params.requiredConfirmations : 6;
+      minTimeoutBlock = ethTip + conf + runwayBlocks;
+    }
+  }
+
   // Pure PTLC: verify amount + recipient + pointAddress + not claimed/refunded
   // against the PointTimelock registry. Fail-closed on missing registry.
   if (ptlcNegotiated(params)) {
@@ -142,8 +165,10 @@ ChainClientResult EthChainClient::verifyLock(const SwapParams& params) {
     std::string expectedPointAddress =
         EthAbi::derivePointAddressFromSecpBytes(secpPub.data.data(), secpPub.data.size());
     bool ok = m_rpc->verifyPointLock(params.ctrLockTxId, params.ctrAmount,
-                                     params.ctrAddress, expectedPointAddress);
-    if (!ok) return ChainClientResult::fail(m_chainName + " lock not verified");
+                                     params.ctrAddress, expectedPointAddress,
+                                     minTimeoutBlock);
+    if (!ok) return ChainClientResult::fail(m_chainName +
+        " lock not verified (amount/recipient/point/timeout)");
     return ChainClientResult::ok(params.ctrLockTxId);
   }
 
@@ -162,8 +187,9 @@ ChainClientResult EthChainClient::verifyLock(const SwapParams& params) {
   if (expectedHash.empty())
     return ChainClientResult::fail(m_chainName + " verifyLock: no hashLock or adaptorSecret");
   bool ok = m_rpc->verifyLock(params.ctrLockTxId, params.ctrAmount,
-                              params.ctrAddress, expectedHash);
-  if (!ok) return ChainClientResult::fail(m_chainName + " lock not verified");
+                              params.ctrAddress, expectedHash, minTimeoutBlock);
+  if (!ok) return ChainClientResult::fail(m_chainName +
+      " lock not verified (amount/recipient/hashlock/timeout)");
   return ChainClientResult::ok(params.ctrLockTxId);
 }
 

@@ -299,30 +299,19 @@ double Currency::getBurnPercentage() const {
 
   uint64_t Currency::calculateInterest(uint64_t amount, uint32_t term, uint32_t height) const
   {
-    uint64_t a = static_cast<uint64_t>(term) * m_depositMaxTotalRate - m_depositMinTotalRateFactor;
-    uint64_t bHi;
-    uint64_t bLo = mul128(amount, a, &bHi);
-    uint64_t cHi;
-    uint64_t cLo;
-    uint64_t offchaininterest = 0;
-    assert(std::numeric_limits<uint32_t>::max() / 100 > m_depositMaxTerm);
-    div128_32(bHi, bLo, static_cast<uint32_t>(100 * m_depositMaxTerm), &cHi, &cLo);
-    assert(cHi == 0);
-
-    // early deposit multiplier
-    uint64_t interestHi;
-    uint64_t interestLo;
-    if (height <= CryptoNote::parameters::END_MULTIPLIER_BLOCK)
-    {
-      interestLo = mul128(cLo, CryptoNote::parameters::MULTIPLIER_FACTOR, &interestHi);
-      assert(interestHi == 0);
-    }
-    else
-    {
-      interestHi = cHi;
-      interestLo = cLo;
-    }
-    return offchaininterest;
+    // Legacy XFG term deposits (MultisignatureOutput / MultisignatureInput) earn
+    // NO on-chain interest. All yield is via HEAT CDs (see calculateCdInterest);
+    // there is no legacy-bond migration path.
+    //
+    // Returning 0 is intentional and does not block withdrawals:
+    //   - getTransactionInputAmount() values a matured legacy input at
+    //     `amount + 0`, so a principal-minus-fee withdrawal passes the
+    //     money-conservation check;
+    //   - maturity (deposit height + term) and double-spend are enforced
+    //     independently in Blockchain::validateInput().
+    // A depositor withdraws principal and can then lock it into a HEAT CD.
+    (void)amount; (void)term; (void)height;
+    return 0;
   }
 
   /* ---------------------------------------------------------------------------------------------------- */

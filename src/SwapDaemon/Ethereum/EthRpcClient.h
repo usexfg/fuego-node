@@ -109,10 +109,14 @@ public:
                 std::string& contractIdHex);
 
   // verify via getContract(contractId): amount, recipient, hashLock, not claimed/refunded.
+  // AUDIT 6.1: minTimeoutBlock (0 = skip) rejects a counterparty lock whose
+  // on-chain timeout is too near — otherwise they can refund before we can
+  // safely claim after revealing / locking our side.
   bool verifyLock(const std::string& contractIdHex,
                   uint64_t expectedWei,
                   const std::string& expectedRecipient = "",
-                  const std::string& expectedHashLockHex = "");
+                  const std::string& expectedHashLockHex = "",
+                  uint64_t minTimeoutBlock = 0);
 
   // If claimed, returns 64-char hex preimage; empty if not claimed / error.
   std::string getClaimedPreimage(const std::string& contractIdHex);
@@ -142,10 +146,12 @@ public:
 
   // Verify via getContract(contractId): amount, recipient, pointAddress,
   // not claimed/refunded. Empty expected* args skip that comparison.
+  // AUDIT 6.1: minTimeoutBlock (0 = skip) — see verifyLock().
   bool verifyPointLock(const std::string& contractIdHex,
                        uint64_t expectedWei,
                        const std::string& expectedRecipient = "",
-                       const std::string& expectedPointAddress = "");
+                       const std::string& expectedPointAddress = "",
+                       uint64_t minTimeoutBlock = 0);
 
   // If claimed, returns 64-char hex of the canonical big-endian scalar t;
   // empty if not claimed / error.

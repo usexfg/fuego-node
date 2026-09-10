@@ -138,3 +138,66 @@ in-flight working tree.
 | Build compiles (CryptoNoteCore, Daemon, SimpleWallet) | claude-code/opus-5 | 2026-09-09 | PASS |
 | Tests pass (hearth 31/31, auction 57/57, orderbook 44/44, p2p 61/61, core 170/170) | claude-code/opus-5 | 2026-09-09 | PASS |
 | All tasks complete | claude-code/opus-5 | 2026-09-09 | PASS |
+
+---
+
+## Atomic-Swap Security Fixes: adaptor identity, timeout floor, transfer brick, cross-curve gate
+
+**Branch/Feature**: swap-security-fixes
+**Started**: 2026-09-09
+**Agent**: claude-code/sonnet-5
+**Status**: CODE COMPLETE — full build + test pass PENDING (no C++ build in review env)
+
+Five findings from the module-by-module swap audit
+(`docs/review/2026-09-09-swap-security-audit.md`). Fixes are minimal and, where
+they change a fund path, fail toward current behaviour rather than stricter.
+
+### Task List
+
+| # | Task | Owner | Date | Status |
+|---|------|-------|------|--------|
+| 1 | AUDIT 1.2/3.2 — `AdaptorSwap.cpp::adaptor_extract_secret` verifies `t*G == params.adaptorPoint` (and `t != 0`), wipes on mismatch | claude-code/sonnet-5 | 2026-09-09 | DONE |
+| 2 | AUDIT 1.2/3.2 — `secp_adaptor_extract` rejects `t == 0`; new 4-arg overload verifies `t*G == T`; header + note | claude-code/sonnet-5 | 2026-09-09 | DONE |
+| 3 | AUDIT 3.9 — `SwapDaemon.cpp` gates pure-secp PTLC behind `kCrossCurveDleqAvailable=false` until a real Ed25519↔secp256k1 DLEQ exists (BRIDGE path unaffected) | claude-code/sonnet-5 | 2026-09-09 | DONE |
+| 4 | AUDIT 6.1 — `EthRpcClient::verifyLock`/`verifyPointLock` take `minTimeoutBlock` (0 = skip); `EthChainClient::verifyLock` computes it from tip + confirmations + a per-chain ~1h floor via `msPerBlock()` | claude-code/sonnet-5 | 2026-09-09 | DONE |
+| 5 | AUDIT 6.2 — `HashedTimelock.sol` + `PointTimelock.sol` pay out with `.call{value:}` + `require(ok)` + `nonReentrant` instead of `.transfer` (2300-gas brick) | claude-code/sonnet-5 | 2026-09-09 | DONE |
+| 6 | AUDIT 6.7 — `PtlcTimelockPure.sol` strict mode enforces `(s - s')*G == T` on-chain (new `sPrime` param, `ptlcPointY` stored); also fixed pre-existing compile blockers (`TimeoutNotReached` undeclared, `bytes memory` range-slice); marked `@custom:staged` / not deployable | claude-code/sonnet-5 | 2026-09-09 | DONE |
+| 7 | `forge test` — existing PointTimelock suite 12/12 PASS after the 6.2 change | claude-code/sonnet-5 | 2026-09-09 | DONE |
+| 8 | `g++ -fsyntax-only` on every touched C++ TU — all parse clean | claude-code/sonnet-5 | 2026-09-09 | DONE |
+| 9 | AUDIT 2.1 — `Currency::calculateInterest` simplified to `return 0` (legacy XFG term-deposit interest is intentionally 0; all yield is HEAT CDs; no legacy-bond path). Verified against `getTransactionInputAmount` (input valued at principal → principal-minus-fee withdrawal passes conservation), `Blockchain::validateInput` (maturity + double-spend enforced independently), banking-index emission accounting (`Blockchain.cpp:1044`), and the vestigial legacy-bond removal branch (`Blockchain.cpp:4177`). Wallet callers use it for display only. | claude-code/sonnet-5 | 2026-09-09 | DONE |
+| 10 | Full SwapDaemon + CryptoNoteCore build + swap/core test suite | — | — | PENDING (run in build env) |
+| 11 | Regression test: contract-wallet recipient can now claim (6.2); timeout-too-soon lock is rejected (6.1); wrong-`t` extract fails (1.2); matured legacy multisig deposit still withdraws for principal (2.1) | — | — | PENDING |
+
+### Notes
+
+- **3.9 is a gate, not a primitive.** A genuine cross-group DLEQ
+  (Ed25519↔secp256k1) is a separately-reviewed deliverable; shipping a
+  hand-rolled one into a fund path unverified would be worse than the
+  documented gap. `FEATURE_PURE_PTLC` now has no effect until
+  `kCrossCurveDleqAvailable` flips. `PTLC_HTLC_BRIDGE` (on-chain hashlock) is
+  the live PTLC path and is untouched.
+- **6.7 is on a staged contract.** `PtlcTimelockPure.sol` targets draft
+  EIP-6601 precompiles (not live anywhere) and `supportsPurePtlc()` is false,
+  so no swap uses it. The live EVM PTLC contract, `PointTimelock.sol`, already
+  proves `t*G == T` via the ecrecover trick — its adaptor identity was never
+  the gap.
+- **6.1 fails safe.** If the ETH tip RPC is unavailable, `minTimeoutBlock`
+  stays 0 and the timeout check is skipped — identical to pre-fix behaviour,
+  never stricter by accident. The floor is time-based (~1h) converted through
+  `msPerBlock(params.pair)` so it scales across ETH and the fast L2s that
+  share the `HashedTimelock` ABI.
+- The BTC/BCH/DCR UTXO `verifyLock` paths were reviewed for the same 6.1 gap
+  and appear safe *because* they recompute the expected P2SH/P2WSH redeem
+  script (timeout included) and match the hash, rather than trusting decoded
+  fields — but each chain client's script reconstruction should be confirmed.
+
+### Sign-Off
+
+| Gate | Signed By | Date | Result |
+|------|-----------|------|--------|
+| Solidity builds (HashedTimelock, PointTimelock) | claude-code/sonnet-5 | 2026-09-09 | PASS |
+| forge test (PointTimelock 12/12) | claude-code/sonnet-5 | 2026-09-09 | PASS |
+| C++ syntax check (all touched TUs, -fsyntax-only) | claude-code/sonnet-5 | 2026-09-09 | PASS |
+| Full C++ build (SwapDaemon) | — | — | NOT RUN (no build env) |
+| Swap test suite | — | — | NOT RUN |
+| All tasks complete | claude-code/sonnet-5 | 2026-09-09 | PARTIAL (tasks 9–10 pending) |

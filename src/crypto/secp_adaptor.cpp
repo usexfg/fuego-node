@@ -189,7 +189,28 @@ bool secp_adaptor_extract(const SecpAdaptorPresig& presig, const SecpSchnorrSig&
   std::array<uint8_t,32> s_prime = presig.s_prime;
   std::array<uint8_t,32> neg_s = secp_scalar_neg(s);
   auto t = secp_scalar_add(s_prime, neg_s);
+  // AUDIT 1.2 / 3.2: a zero result means the "adaptor" was the identity — the
+  // presig was already a full signature and nothing was locked. Reject.
+  // NOTE: callers that hold the adaptor point T MUST prefer the 4-arg overload
+  // below, which additionally checks t*G == T. The 3-arg form only guards t!=0.
+  if (secp_scalar_is_zero(t)) return false;
   std::memcpy(&t_out, t.data(), 32);
+  return true;
+}
+
+bool secp_adaptor_extract(const SecpAdaptorPresig& presig, const SecpSchnorrSig& sig,
+                          const SecpPubKey& expectedT, SecretKey& t_out) {
+  SecretKey t{};
+  if (!secp_adaptor_extract(presig, sig, t)) return false;
+  // AUDIT 1.2 / 3.2: the recovered scalar must open the adaptor point that was
+  // committed for this swap. Without this a rogue completed signature yields a
+  // wrong t and the counter-chain claim fails, stranding funds to timeout.
+  SecpPubKey derived{};
+  if (!secp_secret_to_pubkey(t, derived) || derived != expectedT) {
+    std::memset(&t, 0, sizeof(t));
+    return false;
+  }
+  t_out = t;
   return true;
 }
 

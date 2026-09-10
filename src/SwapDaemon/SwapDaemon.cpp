@@ -977,12 +977,23 @@ bool SwapDaemon::initiate(SwapParams& params) {
 
     IChainClient* ctrClient = m_chainRegistry.getClient(params.pair);
     bool localPtlc = ctrClient && ctrClient->supportsPtlc();
+
+    // AUDIT 3.9 — fail-closed: the pure-secp PTLC path binds an Ed25519 adaptor
+    // secret to a secp256k1 point (params.secpPubHex) but there is no genuine
+    // cross-curve DLEQ proving the two points share the same discrete log —
+    // crypto/dleq.cpp is same-curve only. Until a reviewed Ed25519<->secp256k1
+    // DLEQ lands, pure PTLC must stay disabled regardless of FEATURE_PURE_PTLC,
+    // so no swap can be locked to an unprovable cross-curve point. The
+    // PTLC_HTLC_BRIDGE path (on-chain hashlock) is unaffected.
+    static constexpr bool kCrossCurveDleqAvailable = false;
+
     // Pure PTLC gate: env flag + local PURE capability. The peer half arrives
     // later via MsgAdaptorExchange caps; initiate gates on local only — an
     // HTLC-only peer still downgrades/aborts on wire negotiation
     // (requirePtlc abort path unchanged).
     bool localPure =
-      kPurePtlcEnabled && ctrClient != nullptr && ctrClient->supportsPurePtlc();
+      kPurePtlcEnabled && kCrossCurveDleqAvailable &&
+      ctrClient != nullptr && ctrClient->supportsPurePtlc();
     if (isPtlcNativePair(params.pair)) localPtlc = true;
     if (params.lockType == SwapLockType::HTLC) {
       if (localPure) {
