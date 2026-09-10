@@ -43,8 +43,17 @@ bool point_is_valid(const unsigned char bytes[32]) {
   ge_p1p1_to_p2(&p2r, &p1p1);
   unsigned char out[32];
   ge_tobytes(out, &p2r);
+  // Reject small-order points: P is small-order exactly when 8*P is the
+  // neutral element. The neutral element encodes as {0x01, 0, ..., 0} — NOT
+  // all-zero. Comparing against all-zero made this check inert, because no
+  // valid point ever encodes to 32 zero bytes, so every decodable point was
+  // accepted (identity and the 8-torsion points included).
+  static const unsigned char kNeutral[32] = {
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  };
   int diff = 0;
-  for (int i = 0; i < 32; ++i) diff |= out[i];
+  for (int i = 0; i < 32; ++i) diff |= (out[i] ^ kNeutral[i]);
   return diff != 0;
 }
 
@@ -55,16 +64,22 @@ namespace Crypto {
 // Domain separator for DLEQ challenge hashing.
 static const char DLEQ_DOMAIN[] = "FuegoDLEQ";
 
-// Hash buffer for DLEQ challenge: domain || P || A || B || R1 || R2
-// Total: 9 + 32*5 = 169 bytes
+// Hash buffer for DLEQ challenge: domain || ctx || P || A || B || R1 || R2
+// Total: 9 + 32*6 = 201 bytes. Every member is a byte array (alignment 1), so
+// the layout carries no padding and sizeof() is exact on any toolchain — the
+// static_assert below pins that, since a silent pad byte would change the
+// challenge and split verification across compilers.
 struct dleq_hash_buf {
   char domain[sizeof(DLEQ_DOMAIN) - 1];  // "FuegoDLEQ" (no null)
+  unsigned char context[32];               // AUDIT 1.8: per-swap transcript
   unsigned char base_point[32];            // P
   unsigned char point_G[32];               // A = x*G
   unsigned char point_P[32];               // B = x*P
   unsigned char R1[32];                    // k*G
   unsigned char R2[32];                    // k*P
 };
+static_assert(sizeof(dleq_hash_buf) == (sizeof(DLEQ_DOMAIN) - 1) + 32 * 6,
+              "dleq_hash_buf must be packed; a pad byte would change the challenge");
 
 static inline void dleq_random_scalar(EllipticCurveScalar &res) {
   unsigned char tmp[64];
@@ -78,14 +93,36 @@ bool generate_dleq_proof(
     const PublicKey &point_G,
     const PublicKey &point_P,
     const SecretKey &secret,
+    const Hash &context,
     DLEQProof &proof)
 {
   std::lock_guard<std::mutex> lock(random_lock);
 
-  // Decode P (second generator)
-  ge_p3 P_p3;
+  // AUDIT 1.8: validate every point the prover commits to, matching the
+  // verifier. Previously only base_point was decoded (no cofactor check) and
+  // A/B were hashed as opaque bytes, so a caller could produce a "proof" over
+  // small-order or malformed points that no honest verifier would ever accept.
+  ge_p3 P_p3, A_p3, B_p3;
   if (ge_frombytes_vartime(&P_p3,
       reinterpret_cast<const unsigned char*>(&base_point)) != 0) {
+    return false;
+  }
+  if (!point_is_valid(reinterpret_cast<const unsigned char*>(&base_point))) return false;
+  if (ge_frombytes_vartime(&A_p3,
+      reinterpret_cast<const unsigned char*>(&point_G)) != 0) {
+    return false;
+  }
+  if (!point_is_valid(reinterpret_cast<const unsigned char*>(&point_G))) return false;
+  if (ge_frombytes_vartime(&B_p3,
+      reinterpret_cast<const unsigned char*>(&point_P)) != 0) {
+    return false;
+  }
+  if (!point_is_valid(reinterpret_cast<const unsigned char*>(&point_P))) return false;
+
+  // Reject an out-of-range or zero secret rather than emitting a proof that
+  // cannot verify.
+  if (sc_check(reinterpret_cast<const unsigned char*>(&secret)) != 0 ||
+      sc_isnonzero(reinterpret_cast<const unsigned char*>(&secret)) == 0) {
     return false;
   }
 
@@ -106,6 +143,7 @@ bool generate_dleq_proof(
   // Build hash buffer
   dleq_hash_buf buf;
   memcpy(buf.domain, DLEQ_DOMAIN, sizeof(DLEQ_DOMAIN) - 1);
+  memcpy(buf.context, &context, 32);
   memcpy(buf.base_point, &base_point, 32);
   memcpy(buf.point_G, &point_G, 32);
   memcpy(buf.point_P, &point_P, 32);
@@ -128,6 +166,7 @@ bool check_dleq_proof(
     const PublicKey &base_point,
     const PublicKey &point_G,
     const PublicKey &point_P,
+    const Hash &context,
     const DLEQProof &proof)
 {
   // Decode all points — reject identity and small-order
@@ -173,6 +212,7 @@ bool check_dleq_proof(
   // Build hash buffer and recompute challenge
   dleq_hash_buf buf;
   memcpy(buf.domain, DLEQ_DOMAIN, sizeof(DLEQ_DOMAIN) - 1);
+  memcpy(buf.context, &context, 32);
   memcpy(buf.base_point, &base_point, 32);
   memcpy(buf.point_G, &point_G, 32);
   memcpy(buf.point_P, &point_P, 32);

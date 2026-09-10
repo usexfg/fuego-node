@@ -41,6 +41,9 @@ static bool setupKeys(SwapParams& alice, SwapParams& bob) {
   alice.peerSwapPubKey = bob.ourSwapPubKey;
   bob.peerSwapPubKey = alice.ourSwapPubKey;
 
+  // AUDIT 1.8: both sides must share the swap id — the DLEQ proof is bound to it.
+  alice.swapId = bob.swapId = "escrow-claim-1";
+
   if (!adaptor_key_aggregate(alice)) return false;
   if (!adaptor_key_aggregate(bob)) return false;
   if (std::memcmp(&alice.escrowPubKey, &bob.escrowPubKey, 32) != 0) return false;

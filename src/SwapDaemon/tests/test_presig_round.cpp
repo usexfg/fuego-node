@@ -169,6 +169,8 @@ static bool testSessionDeterminism() {
   alice.role = SwapRole::ALICE;
   bob.role = SwapRole::BOB;
   alice.pair = bob.pair = SwapPair::ETH;
+  // AUDIT 1.8: the DLEQ proof is bound to the swap id; both sides share it.
+  alice.swapId = bob.swapId = "presig-session-converge-1";
   adaptor_generate_keys(alice);
   adaptor_generate_keys(bob);
   alice.peerSwapPubKey = bob.ourSwapPubKey;

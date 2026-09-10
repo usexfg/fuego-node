@@ -226,3 +226,57 @@ Closes rows 10 and 11 of the swap security audit, which it could not run itself
 | C++ suites (10) — hearth 31, auction 57, orderbook 44, p2p 61, core 177, gates 19, audit-regressions 22, + phase3/phase5/adaptor | claude-code/opus-5 | 2026-09-10 | PASS |
 | Solidity (forge) — PointTimelock 15/15 | claude-code/opus-5 | 2026-09-10 | PASS |
 | All tasks complete | claude-code/opus-5 | 2026-09-10 | PASS |
+
+---
+
+## AUDIT 1.8 — DLEQ Transcript Binding + Inert Small-Order Check
+
+**Agent**: claude-code/opus-5 · **Date**: 2026-09-10 · **Status**: COMPLETE
+**Scope note**: this closes 1.8, the documented root of 3.9. **3.9 itself
+remains OPEN** — see below.
+
+### Task List
+
+| # | Task | Owner | Date | Status |
+|---|------|-------|------|--------|
+| 1 | Bind every DLEQ proof to a per-swap 32-byte context hashed into the challenge | claude-code/opus-5 | 2026-09-10 | DONE |
+| 2 | Derive that context from `swapId`; refuse an empty id rather than share one context | claude-code/opus-5 | 2026-09-10 | DONE |
+| 3 | Validate `base_point`, `A` and `B` prover-side (previously A/B were hashed as opaque bytes) | claude-code/opus-5 | 2026-09-10 | DONE |
+| 4 | Reject a zero / out-of-range secret instead of emitting an unverifiable proof | claude-code/opus-5 | 2026-09-10 | DONE |
+| 5 | Fix `point_is_valid` in `dleq.cpp` and `adaptor.cpp` — the small-order check was inert | claude-code/opus-5 | 2026-09-10 | DONE |
+| 6 | `static_assert` the challenge preimage layout (finding 1.6 class of bug) | claude-code/opus-5 | 2026-09-10 | DONE |
+| 7 | Regression tests: cross-swap replay rejected, identity/zero rejected, legitimate flow intact | claude-code/opus-5 | 2026-09-10 | DONE |
+
+### `point_is_valid` was accepting everything
+
+Both `dleq.cpp` and `adaptor.cpp` computed `8*P` and rejected the point only if
+the encoding was 32 zero bytes. The Ed25519 neutral element encodes as
+`{0x01, 0x00 ... 0x00}`, and **no** valid point encodes to all-zero, so the
+comparison could never fire: every decodable point passed, including the
+identity and the 8-torsion points. The cofactor check the audit credited these
+files with (finding 1.3 cites them as the example MuSig2 should follow) was
+doing nothing. Now compares against the neutral encoding.
+
+### Wire compatibility
+
+The challenge preimage gained a 32-byte context, so proofs do not verify across
+builds. The swap protocol has no version negotiation, so **both peers must run
+the same build**. Acceptable now because the affected path (PTLC_HTLC_BRIDGE) is
+Phase 1 and pure PTLC is gated off.
+
+### 3.9 remains OPEN
+
+3.9 needs a genuine Ed25519↔secp256k1 cross-group DLEQ. `crypto/dleq.cpp` is
+Chaum-Pedersen on Ed25519 — both `A = x*G` and `B = x*P` are Ed25519 points, so
+it cannot bind a secp256k1 point no matter how it is hardened. A real
+construction (per-bit Pedersen commitments on both curves plus OR-proofs, à la
+Gugger 2020) is a separate, reviewable piece of work.
+`kCrossCurveDleqAvailable` stays `false`.
+
+### Sign-Off
+
+| Gate | Signed By | Date | Result |
+|------|-----------|------|--------|
+| Build compiles (Daemon, SimpleWallet, SwapDaemonLib) | claude-code/opus-5 | 2026-09-10 | PASS |
+| 14 suites, 0 failures (audit-regressions 37/37, core 177/177) | claude-code/opus-5 | 2026-09-10 | PASS |
+| 3.9 closed | — | — | NO — remains OPEN by design |

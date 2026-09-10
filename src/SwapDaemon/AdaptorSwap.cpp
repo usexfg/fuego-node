@@ -74,6 +74,21 @@ bool adaptor_key_aggregate(SwapParams& params) {
   return true;
 }
 
+namespace {
+// AUDIT 1.8: bind each DLEQ proof to its swap. Without this a proof over
+// (P, A, B) verifies in any session reusing those points, so a captured proof
+// replays into an unrelated swap. An empty swapId would give every swap the
+// same context and defeat the binding, so it is refused rather than hashed.
+bool dleqContextForSwap(const SwapParams& params, Crypto::Hash& out) {
+  if (params.swapId.empty()) return false;
+  static const char kCtxDomain[] = "FuegoSwapDLEQCtx";
+  std::string preimage(kCtxDomain, sizeof(kCtxDomain) - 1);
+  preimage += params.swapId;
+  Crypto::cn_fast_hash(preimage.data(), preimage.size(), out);
+  return true;
+}
+} // namespace
+
 bool adaptor_generate_adaptor(SwapParams& params,
                               const Crypto::PublicKey& dleq_base_point) {
   // Generate adaptor secret t, point T = t*G
@@ -122,21 +137,29 @@ bool adaptor_generate_adaptor(SwapParams& params,
   // The caller passes Q (params.adaptorDleqQ) alongside T and proof to the peer.
   ge_tobytes(reinterpret_cast<unsigned char*>(&params.adaptorDleqQ), &Q_p2);
 
+  Crypto::Hash dleqCtx{};
+  if (!dleqContextForSwap(params, dleqCtx)) return false;
+
   return Crypto::generate_dleq_proof(
       dleq_base_point,
       params.adaptorPoint,  // A = t*G
       params.adaptorDleqQ,  // B = t*P
       params.adaptorSecret,
+      dleqCtx,
       params.adaptorDleqProof);
 }
 
 bool adaptor_verify_adaptor(const SwapParams& params,
                             const Crypto::PublicKey& dleq_base_point,
                             const Crypto::PublicKey& dleq_peer_Q) {
+  Crypto::Hash dleqCtx{};
+  if (!dleqContextForSwap(params, dleqCtx)) return false;
+
   return Crypto::check_dleq_proof(
       dleq_base_point,
       params.adaptorPoint,
       dleq_peer_Q,
+      dleqCtx,
       params.adaptorDleqProof);
 }
 

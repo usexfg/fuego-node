@@ -24,6 +24,16 @@
 //
 // Used in swaps to prove that adaptor point T = t*G is
 // well-formed and prover actually knows the discrete log t.
+//
+// AUDIT 1.8: every proof is bound to a caller-supplied 32-byte context, which
+// MUST be unique per swap (e.g. a hash of the swap id). Without it a proof over
+// (P, A, B) verifies in ANY session reusing those points, so one captured proof
+// can be replayed into an unrelated swap. The context is hashed into the
+// challenge, so a proof made for one context cannot verify under another.
+//
+// NOTE: this changes the challenge preimage. Proofs from builds before this
+// change do not verify here, and vice versa — there is no wire-format
+// negotiation in the swap protocol, so both peers must run the same build.
 
 #pragma once
 
@@ -56,6 +66,7 @@ bool generate_dleq_proof(
     const PublicKey &point_G,      // A = x*G
     const PublicKey &point_P,      // B = x*P
     const SecretKey &secret,       // x
+    const Hash &context,           // per-swap transcript binding (AUDIT 1.8)
     DLEQProof &proof);
 
 // Verify a DLEQ proof.
@@ -66,6 +77,7 @@ bool check_dleq_proof(
     const PublicKey &base_point,   // P
     const PublicKey &point_G,      // A = x*G
     const PublicKey &point_P,      // B = x*P
+    const Hash &context,           // must equal the prover's context
     const DLEQProof &proof);
 
 } // namespace Crypto

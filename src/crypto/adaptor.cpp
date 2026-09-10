@@ -42,8 +42,17 @@ bool point_is_valid(const unsigned char bytes[32]) {
   ge_p1p1_to_p2(&p2r, &p1p1);
   unsigned char out[32];
   ge_tobytes(out, &p2r);
+  // Reject small-order points: P is small-order exactly when 8*P is the
+  // neutral element. The neutral element encodes as {0x01, 0, ..., 0} — NOT
+  // all-zero. Comparing against all-zero made this check inert, because no
+  // valid point ever encodes to 32 zero bytes, so every decodable point was
+  // accepted (identity and the 8-torsion points included).
+  static const unsigned char kNeutral[32] = {
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  };
   int diff = 0;
-  for (int i = 0; i < 32; ++i) diff |= out[i];
+  for (int i = 0; i < 32; ++i) diff |= (out[i] ^ kNeutral[i]);
   return diff != 0;
 }
 

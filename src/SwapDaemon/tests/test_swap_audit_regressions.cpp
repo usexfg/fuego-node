@@ -7,6 +7,9 @@
 //              published for THIS swap, not merely be non-zero.
 //   6.1        a counterparty lock whose on-chain timeout is too soon must be
 //              rejected; this pins the timeout floor the check is built on.
+//   1.8        a DLEQ proof must be bound to its swap, or one captured proof
+//              replays into any other session reusing the same points. This is
+//              the documented root of finding 3.9.
 //
 // 6.2 (contract-wallet recipients / reentrancy) is covered by forge in
 // contracts/point-timelock/test/PointTimelock.t.sol; 2.1 (matured legacy
@@ -16,6 +19,8 @@
 #include <cstring>
 #include <iostream>
 
+#include "crypto/dleq.h"
+#include "SwapDaemon/AdaptorSwap.h"
 #include "crypto/secp_adaptor.h"
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
@@ -138,10 +143,98 @@ static void testLockTimeoutFloor() {
   CHECK(!rejected(tip + 1, 0), "minTimeoutBlock == 0 skips the check (tip unavailable)");
 }
 
+
+// ── AUDIT 1.8 ────────────────────────────────────────────────────────────────
+
+static void testDleqIsBoundToItsSwap() {
+  std::cout << "\nAUDIT 1.8: DLEQ proofs are bound to one swap\n";
+
+  PublicKey basePoint{}, A{}, B{};
+  SecretKey baseSec{}, x{};
+  generate_keys(basePoint, baseSec);   // a valid second generator P
+  generate_keys(A, x);                 // A = x*G
+
+  // B = x*P
+  ge_p3 P_p3;
+  bool ok = ge_frombytes_vartime(&P_p3, reinterpret_cast<const unsigned char*>(&basePoint)) == 0;
+  CHECK(ok, "base point decodes");
+  ge_p2 B_p2;
+  ge_scalarmult(&B_p2, reinterpret_cast<const unsigned char*>(&x), &P_p3);
+  ge_tobytes(reinterpret_cast<unsigned char*>(&B), &B_p2);
+
+  Hash ctxA{}, ctxB{};
+  cn_fast_hash("swap-aaa", 8, ctxA);
+  cn_fast_hash("swap-bbb", 8, ctxB);
+  CHECK(std::memcmp(&ctxA, &ctxB, 32) != 0, "the two swap contexts differ");
+
+  DLEQProof proof{};
+  CHECK(generate_dleq_proof(basePoint, A, B, x, ctxA, proof), "proof generated for swap A");
+  CHECK(check_dleq_proof(basePoint, A, B, ctxA, proof), "proof verifies under its own context");
+  CHECK(!check_dleq_proof(basePoint, A, B, ctxB, proof),
+        "proof does NOT verify under another swap's context (replay blocked)");
+
+  // Prover-side validation: the identity point is not a usable generator.
+  PublicKey identity{}; reinterpret_cast<unsigned char*>(&identity)[0] = 1;
+  DLEQProof junk{};
+  CHECK(!generate_dleq_proof(identity, A, B, x, ctxA, junk),
+        "prover refuses the identity as base point");
+  CHECK(!generate_dleq_proof(basePoint, identity, B, x, ctxA, junk),
+        "prover refuses an identity A");
+  CHECK(!generate_dleq_proof(basePoint, A, identity, x, ctxA, junk),
+        "prover refuses an identity B");
+
+  SecretKey zero{};
+  CHECK(!generate_dleq_proof(basePoint, A, B, zero, ctxA, junk),
+        "prover refuses a zero secret");
+
+  // Tampering with either point invalidates the proof.
+  CHECK(!check_dleq_proof(basePoint, B, A, ctxA, proof), "swapping A and B fails verification");
+}
+
+static void testAdaptorDleqRejectsCrossSwapReplay() {
+  std::cout << "\nAUDIT 1.8: captured adaptor proof cannot be replayed into another swap\n";
+
+  XfgSwap::SwapParams bob{}, victim{};
+  bob.role = XfgSwap::SwapRole::BOB;
+  victim.role = XfgSwap::SwapRole::ALICE;
+  bob.pair = victim.pair = XfgSwap::SwapPair::ETH;
+  XfgSwap::adaptor_generate_keys(bob);
+  XfgSwap::adaptor_generate_keys(victim);
+  bob.peerSwapPubKey = victim.ourSwapPubKey;
+  victim.peerSwapPubKey = bob.ourSwapPubKey;
+  CHECK(XfgSwap::adaptor_key_aggregate(bob) && XfgSwap::adaptor_key_aggregate(victim),
+        "escrow keys aggregate");
+
+  // An unset swap id must not silently produce a shared context.
+  XfgSwap::SwapParams noId = bob;
+  noId.swapId.clear();
+  CHECK(!XfgSwap::adaptor_generate_adaptor(noId, noId.escrowPubKey),
+        "adaptor generation refuses an empty swap id");
+
+  bob.swapId = "swap-one";
+  CHECK(XfgSwap::adaptor_generate_adaptor(bob, bob.escrowPubKey), "swap-one adaptor generated");
+
+  // The victim is running a DIFFERENT swap but the attacker replays swap-one's
+  // point, Q and proof verbatim.
+  victim.swapId = "swap-two";
+  victim.adaptorPoint     = bob.adaptorPoint;
+  victim.adaptorDleqQ     = bob.adaptorDleqQ;
+  victim.adaptorDleqProof = bob.adaptorDleqProof;
+  CHECK(!XfgSwap::adaptor_verify_adaptor(victim, bob.escrowPubKey, victim.adaptorDleqQ),
+        "replayed proof is REJECTED by a swap with a different id");
+
+  // Same id, same points: still accepted, so the binding is not over-tight.
+  victim.swapId = "swap-one";
+  CHECK(XfgSwap::adaptor_verify_adaptor(victim, bob.escrowPubKey, victim.adaptorDleqQ),
+        "the legitimate counterparty still accepts it");
+}
+
 int main() {
   std::cout << "Swap security audit regressions\n===============================\n";
   testAdaptorExtractBindsToPublishedPoint();
   testLockTimeoutFloor();
+  testDleqIsBoundToItsSwap();
+  testAdaptorDleqRejectsCrossSwapReplay();
   std::cout << "\n===============================\n"
             << g_pass << " passed, " << g_fail << " failed\n";
   return g_fail == 0 ? 0 : 1;

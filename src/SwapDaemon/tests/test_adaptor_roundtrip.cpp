@@ -47,6 +47,9 @@ static bool setupPair(SwapParams& alice, SwapParams& bob) {
   bob.peerSwapPubKey   = alice.ourSwapPubKey;
 
   // Step 2: both aggregate to the same escrow key
+  // AUDIT 1.8: both sides must share the swap id — the DLEQ proof is bound to it.
+  alice.swapId = bob.swapId = "adaptor-roundtrip-1";
+
   if (!adaptor_key_aggregate(alice)) return false;
   if (!adaptor_key_aggregate(bob))   return false;
   if (std::memcmp(&alice.escrowPubKey, &bob.escrowPubKey, 32) != 0) {
