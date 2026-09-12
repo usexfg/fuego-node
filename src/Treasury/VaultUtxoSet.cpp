@@ -225,7 +225,7 @@ void VaultUtxoSet::serialize(ISerializer& s) {
             vo.asset = static_cast<AssetType>(assetRaw);
             uint8_t partRaw = static_cast<uint8_t>(vo.partition);
             s(partRaw, "vo_partition");
-            if (partRaw > static_cast<uint8_t>(VaultPartition::SWF)) {
+            if (partRaw > static_cast<uint8_t>(VaultPartition::BONUS_VAULT)) {
                 return;
             }
             vo.partition = static_cast<VaultPartition>(partRaw);

@@ -19,8 +19,6 @@ class VaultUtxoSet;
 
 class VaultPolicy {
 public:
-    static bool isVaultKeyImage(const Crypto::KeyImage& ki);
-
     static VaultPartition classifySpend(
         const Transaction& tx,
         const VaultUtxoSet& utxoSet);

@@ -35,6 +35,10 @@ bool scanMintTx(const Transaction& tx, uint64_t fee,
       xfgInputs += boost::get<KeyInput>(in).amount;
     } else if (in.type() == typeid(TransactionInputCommitmentSpend)) {
       xfgInputs += boost::get<TransactionInputCommitmentSpend>(in).amount;
+    } else if (in.type() == typeid(TransactionInputCommitmentTransfer)) {
+      // CommitmentTransfer inputs are not a valid XFG burn source.
+      // Allowing them without counting their value would break supply conservation.
+      return false;
     }
   }
 
@@ -84,23 +88,29 @@ bool HeatMintEngine::validateMint(const Transaction& tx,
   heatMinted = 0;
 
   if (price == 0) {
+#ifdef HEAT_MINT_DEBUG
     fprintf(stderr, "[HeatMint] validateMint FAIL: price is zero\n");
+#endif
     return false;
   }
 
   uint64_t xfgInputs = 0, xfgOutputs = 0, heatOutputs = 0;
   if (!scanMintTx(tx, fee, xfgInputs, xfgOutputs, heatOutputs, xfgBurned)) {
+#ifdef HEAT_MINT_DEBUG
     fprintf(stderr, "[HeatMint] validateMint FAIL: structural (inputs=%llu outputs=%llu heat=%llu fee=%llu)\n",
       (unsigned long long)xfgInputs, (unsigned long long)xfgOutputs,
       (unsigned long long)heatOutputs, (unsigned long long)fee);
+#endif
     return false;
   }
 
   uint64_t expectedHeat = expectedHeatFor(xfgBurned, price);
 
+#ifdef HEAT_MINT_DEBUG
   fprintf(stderr, "[HeatMint] validateMint: xfgBurned=%llu expectedHeat=%llu price=%llu heatOutputs=%llu\n",
     (unsigned long long)xfgBurned, (unsigned long long)expectedHeat,
     (unsigned long long)price, (unsigned long long)heatOutputs);
+#endif
 
   if (heatOutputs > expectedHeat) return false;
 
@@ -139,7 +149,9 @@ bool HeatMintEngine::validateMint(const Transaction& tx,
   heatMinted = 0;
 
   if (redemptionPrice.isZero()) {
+#ifdef HEAT_MINT_DEBUG
     fprintf(stderr, "[HeatMint] validateMint FAIL: redemptionPrice is zero\n");
+#endif
     return false;
   }
 

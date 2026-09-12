@@ -24,6 +24,25 @@ bool Ed25519Verify::verify(const uint8_t pubkey[32],
   ge_p3 A;
   if (ge_frombytes_vartime(&A, pubkey) != 0) return false;
 
+  // Reject small-subgroup (low-order) public keys: multiply A by the cofactor
+  // (8 = 3 doublings). If the result is the identity point, A has order
+  // dividing 8 and a signature would verify for any message — reject outright.
+  {
+    ge_p2 tmp2;
+    ge_p1p1 tmp11;
+    ge_p3_to_p2(&tmp2, &A);
+    ge_p2_dbl(&tmp11, &tmp2);   // 2A
+    ge_p1p1_to_p2(&tmp2, &tmp11);
+    ge_p2_dbl(&tmp11, &tmp2);   // 4A
+    ge_p1p1_to_p2(&tmp2, &tmp11);
+    ge_p2_dbl(&tmp11, &tmp2);   // 8A
+    ge_p1p1_to_p2(&tmp2, &tmp11);
+    uint8_t cofactor_point[32];
+    ge_tobytes(cofactor_point, &tmp2);
+    static const uint8_t identity[32] = {};
+    if (std::memcmp(cofactor_point, identity, 32) == 0) return false;
+  }
+
   if (sc_isnonzero(S_bytes) == 0) return false;
 
   std::vector<uint8_t> hash_input(64 + message.size());

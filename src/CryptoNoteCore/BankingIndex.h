@@ -74,6 +74,12 @@ public:
 
   DepositStats getStats() const;
 
+  // True when burn tallies were zeroed during deserialization due to a
+  // missing or corrupt tally section. The node must complete a burn rescan
+  // before accepting new blocks; check with needsRescan().
+  bool needsRescan() const { return m_rescanRequired; }
+  void clearRescanFlag() { m_rescanRequired = false; }
+
 private:
   struct BankingIndexEntry {
     DepositHeight height;
@@ -104,5 +110,6 @@ private:
   BurnedAmount m_total_burned_xfg;
   std::vector<BurnedXfgEntry> m_permanentBurnedEntries;
   BurnedAmount m_permanently_burned_xfg;
+  bool m_rescanRequired = false;
 };
 }

@@ -45,7 +45,15 @@ VaultKeypair deriveVaultKeys(const Crypto::Hash& genesisHash) {
 }
 
 bool isVaultViewKey(const Crypto::PublicKey& key, const Crypto::PublicKey& vaultViewPub) {
-    return memcmp(key.data, vaultViewPub.data, sizeof(key.data)) == 0;
+    // Use volatile XOR reduction to prevent compiler from short-circuiting to
+    // variable-time memcmp behavior on secret-adjacent key material.
+    const uint8_t* a = key.data;
+    const uint8_t* b = vaultViewPub.data;
+    volatile uint8_t diff = 0;
+    for (size_t i = 0; i < sizeof(key.data); ++i) {
+        diff |= (a[i] ^ b[i]);
+    }
+    return diff == 0;
 }
 
 } // namespace CryptoNote

@@ -13,10 +13,6 @@
 
 namespace CryptoNote {
 
-bool VaultPolicy::isVaultKeyImage(const Crypto::KeyImage& ki) {
-    return false; // TODO: check against registered vault key images in index
-}
-
 VaultPartition VaultPolicy::classifySpend(
     const Transaction& tx,
     const VaultUtxoSet& utxoSet) {
@@ -70,6 +66,9 @@ bool VaultPolicy::isPermitted(
 
     switch (source) {
         case VaultPartition::CD_APY_POOL:
+            // TODO(M-1): require a TransactionExtraCdClaim tag and cap the amount
+            // against the accrued yield for the claimed deposit. Currently any
+            // tx targeting this partition is admitted — add claim-tag parsing here.
             return true;
 
         case VaultPartition::LP_RESERVE:
@@ -79,6 +78,11 @@ bool VaultPolicy::isPermitted(
             return hasMintAuth;
 
         case VaultPartition::SWF:
+            return false;
+
+        case VaultPartition::BONUS_VAULT:
+            // No spend mechanism defined yet; explicitly reject to avoid
+            // silently routing to the default-deny case if new enum values are added.
             return false;
 
         default:

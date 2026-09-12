@@ -45,13 +45,23 @@ bool PoolOrderOrchestrator::shouldRegenerate(
     uint64_t totalBandPlaced,
     uint32_t blocksSinceLastRegen) {
 
+  auto updateState = [&]() {
+    m_lastRegenPclear = currentPclear;
+    m_lastRegenXfgReserve = poolXfgReserve;
+    m_lastRegenHeatReserve = poolHeatReserve;
+  };
+
   // Floor: regenerate at least every N blocks to keep orders fresh
-  if (blocksSinceLastRegen >= MAX_BLOCKS_WITHOUT_REGEN)
+  if (blocksSinceLastRegen >= MAX_BLOCKS_WITHOUT_REGEN) {
+    updateState();
     return true;
+  }
 
   // First run
-  if (m_lastRegenPclear == 0)
+  if (m_lastRegenPclear == 0) {
+    updateState();
     return true;
+  }
 
   // 1. Price moved significantly
   if (priorPclear > 0) {
@@ -59,8 +69,10 @@ bool PoolOrderOrchestrator::shouldRegenerate(
       ? currentPclear - priorPclear
       : priorPclear - currentPclear;
     uint64_t threshold = static_cast<uint64_t>((static_cast<uint128_t>(priorPclear) * PRICE_CHANGE_THRESHOLD_BPS) / 10000);
-    if (delta > threshold)
+    if (delta > threshold) {
+      updateState();
       return true;
+    }
   }
 
   // 2. Pool reserves changed (LP deposit/withdrawal)
@@ -75,22 +87,22 @@ bool PoolOrderOrchestrator::shouldRegenerate(
       : priorPoolHeatReserve - poolHeatReserve;
     uint64_t heatThreshold = static_cast<uint64_t>((static_cast<uint128_t>(priorPoolHeatReserve) * RESERVE_CHANGE_THRESHOLD_BPS) / 10000);
 
-    if (xfgDelta > xfgThreshold || heatDelta > heatThreshold)
+    if (xfgDelta > xfgThreshold || heatDelta > heatThreshold) {
+      updateState();
       return true;
+    }
   }
 
   // 3. Band consumption exceeded threshold (pool orders being eaten)
   if (totalBandPlaced > 0) {
     uint64_t consumptionPct = static_cast<uint64_t>((static_cast<uint128_t>(bandFilledThisBlock) * 100) / totalBandPlaced);
-    if (consumptionPct >= BAND_CONSUMPTION_THRESHOLD_PCT)
+    if (consumptionPct >= BAND_CONSUMPTION_THRESHOLD_PCT) {
+      updateState();
       return true;
+    }
   }
 
-  // Update state after decision
-  m_lastRegenPclear = currentPclear;
-  m_lastRegenXfgReserve = poolXfgReserve;
-  m_lastRegenHeatReserve = poolHeatReserve;
-
+  updateState();
   return false;
 }
 
@@ -142,9 +154,9 @@ void PoolOrderOrchestrator::recordPrice(uint64_t P_clear) {
 
 uint64_t PoolOrderOrchestrator::getAveragePrice() const {
   if (m_priceHistory.empty()) return 0;
-  uint64_t sum = 0;
+  uint128_t sum = 0;
   for (auto p : m_priceHistory) sum += p;
-  return sum / static_cast<uint64_t>(m_priceHistory.size());
+  return static_cast<uint64_t>(sum / static_cast<uint64_t>(m_priceHistory.size()));
 }
 
 } // namespace CryptoNote

@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
 #include <iterator>
 #include <limits>
 
@@ -246,11 +247,18 @@ BankingIndex::BurnedAmount BankingIndex::getTotalBurnedXfgAtHeight(DepositHeight
 void BankingIndex::addTotalBurn(BurnedAmount amount, DepositHeight height) {
   if (amount == 0) return;
   const uint64_t MAX_BURNED = std::numeric_limits<uint64_t>::max();
-  assert(amount <= MAX_BURNED - m_total_burned_xfg && "addTotalBurn: Overflow in cumulative total burned!");
+  if (amount > MAX_BURNED - m_total_burned_xfg) {
+    fprintf(stderr, "[BankingIndex] addTotalBurn: overflow rejected (total=%llu amount=%llu)\n",
+            (unsigned long long)m_total_burned_xfg, (unsigned long long)amount);
+    return;
+  }
   m_total_burned_xfg += amount;
 
   if (!m_totalBurnedEntries.empty() && m_totalBurnedEntries.back().height == height) {
-    assert(amount <= MAX_BURNED - m_totalBurnedEntries.back().amount && "addTotalBurn: Overflow in entry amount!");
+    if (amount > MAX_BURNED - m_totalBurnedEntries.back().amount) {
+      fprintf(stderr, "[BankingIndex] addTotalBurn: entry amount overflow rejected at height %u\n", height);
+      return;
+    }
     m_totalBurnedEntries.back().amount += amount;
     m_totalBurnedEntries.back().cumulative_burned = m_total_burned_xfg;
   } else {
@@ -273,11 +281,18 @@ BankingIndex::BurnedAmount BankingIndex::getPermanentlyBurnedXfgAtHeight(Deposit
 void BankingIndex::addPermanentBurn(BurnedAmount amount, DepositHeight height) {
   if (amount == 0) return;
   const uint64_t MAX_BURNED = std::numeric_limits<uint64_t>::max();
-  assert(amount <= MAX_BURNED - m_permanently_burned_xfg && "addPermanentBurn: Overflow in cumulative permanent burned!");
+  if (amount > MAX_BURNED - m_permanently_burned_xfg) {
+    fprintf(stderr, "[BankingIndex] addPermanentBurn: overflow rejected (perm=%llu amount=%llu)\n",
+            (unsigned long long)m_permanently_burned_xfg, (unsigned long long)amount);
+    return;
+  }
   m_permanently_burned_xfg += amount;
 
   if (!m_permanentBurnedEntries.empty() && m_permanentBurnedEntries.back().height == height) {
-    assert(amount <= MAX_BURNED - m_permanentBurnedEntries.back().amount && "addPermanentBurn: Overflow in entry amount!");
+    if (amount > MAX_BURNED - m_permanentBurnedEntries.back().amount) {
+      fprintf(stderr, "[BankingIndex] addPermanentBurn: entry amount overflow rejected at height %u\n", height);
+      return;
+    }
     m_permanentBurnedEntries.back().amount += amount;
     m_permanentBurnedEntries.back().cumulative_burned = m_permanently_burned_xfg;
   } else {
@@ -293,16 +308,20 @@ void BankingIndex::addForeverDeposit(BurnedAmount amount, DepositHeight height) 
   // pushBlock(static_cast<DepositAmount>(amount), 0);
 
   // Add to burned XFG tracking (new functionality)
-  // SECURITY: Check for overflow before adding to cumulative burned amount
   const uint64_t MAX_BURNED = std::numeric_limits<uint64_t>::max();
-  assert(amount <= MAX_BURNED - m_ethereal_xfg && "addForeverDeposit: Overflow in cumulative burned amount!");
+  if (amount > MAX_BURNED - m_ethereal_xfg) {
+    fprintf(stderr, "[BankingIndex] addForeverDeposit: overflow rejected (ethereal=%llu amount=%llu)\n",
+            (unsigned long long)m_ethereal_xfg, (unsigned long long)amount);
+    return;
+  }
 
   m_ethereal_xfg += amount;
 
   if (!m_burnedXfgEntries.empty() && m_burnedXfgEntries.back().height == height) {
-    // Update existing entry
-    // SECURITY: Check for overflow in entry amount as well
-    assert(amount <= MAX_BURNED - m_burnedXfgEntries.back().amount && "addForeverDeposit: Overflow in entry amount!");
+    if (amount > MAX_BURNED - m_burnedXfgEntries.back().amount) {
+      fprintf(stderr, "[BankingIndex] addForeverDeposit: entry amount overflow rejected at height %u\n", height);
+      return;
+    }
     m_burnedXfgEntries.back().amount += amount;
     m_burnedXfgEntries.back().cumulative_burned = m_ethereal_xfg;
   } else {
@@ -338,16 +357,30 @@ void BankingIndex::serialize(ISerializer& s) {
     try {
       s(m_total_burned_xfg, "totalBurnedXFG");
       readSequence<BurnedXfgEntry>(std::back_inserter(m_totalBurnedEntries), "totalBurnedEntries", s);
-    } catch (...) {
+    } catch (const std::exception& e) {
+      fprintf(stderr, "[BankingIndex] totalBurned deserialization failed: %s — rescan required\n", e.what());
       m_total_burned_xfg = 0;
       m_totalBurnedEntries.clear();
+      m_rescanRequired = true;
+    } catch (...) {
+      fprintf(stderr, "[BankingIndex] totalBurned deserialization failed (unknown) — rescan required\n");
+      m_total_burned_xfg = 0;
+      m_totalBurnedEntries.clear();
+      m_rescanRequired = true;
     }
     try {
       s(m_permanently_burned_xfg, "permanentlyBurnedXFG");
       readSequence<BurnedXfgEntry>(std::back_inserter(m_permanentBurnedEntries), "permanentBurnedEntries", s);
-    } catch (...) {
+    } catch (const std::exception& e) {
+      fprintf(stderr, "[BankingIndex] permanentBurned deserialization failed: %s — rescan required\n", e.what());
       m_permanently_burned_xfg = 0;
       m_permanentBurnedEntries.clear();
+      m_rescanRequired = true;
+    } catch (...) {
+      fprintf(stderr, "[BankingIndex] permanentBurned deserialization failed (unknown) — rescan required\n");
+      m_permanently_burned_xfg = 0;
+      m_permanentBurnedEntries.clear();
+      m_rescanRequired = true;
     }
   } else {
     writeSequence<BankingIndexEntry>(index.begin(), index.end(), "index", s);
